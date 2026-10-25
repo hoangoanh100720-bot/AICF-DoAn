@@ -1,41 +1,50 @@
 /**
- * GIỎ HÀNG - lưu trong LocalDb (SQLite trên Android / localStorage trên PWA) nên vẫn còn khi tắt app, mất mạng.
- * Mỗi lần thay đổi đều cập nhật appState.cartCount để huy hiệu trên tab "Giỏ" tự đổi số.
+ * MÓN ĐANG CHỌN (phiếu gọi món nháp) - lưu trong LocalDb (SQLite trên Android / localStorage trên PWA).
+ * Nhân viên đang chọn món cho Bàn 03 mà app bị tắt / mất mạng / có khách gọi giữa chừng thì lần mở lại
+ * vẫn còn nguyên các món đã chọn. Mỗi lúc chỉ có 1 phiếu nháp, gắn với 1 "đích" (bàn / bill / mang đi).
+ * Giá trên phiếu chỉ để xem tạm; giá thật do máy chủ tính khi gửi đơn.
  */
-import { appState } from '../core/store.js';
 import { localDb } from './local-db.js';
 
-async function publish() {
-  const items = await localDb.cartList();
-  appState.set({ cartCount: items.reduce((n, i) => n + i.quantity, 0) });
-  return items;
-}
+const TARGET_KEY = 'draft.target';
 
 export const cart = {
   items: () => localDb.cartList(),
 
-  /** Thêm 1 món (đã có thì cộng số lượng). */
-  async add(product, quantity = 1) {
-    const items = await localDb.cartList();
-    const existing = items.find((i) => i.productId === product.id);
+  /** Đích của phiếu nháp hiện tại, vd "table:3", "order:12", "takeaway". */
+  target: () => localDb.kvGet(TARGET_KEY),
+
+  /** Bắt đầu chọn món cho 1 đích; phiếu nháp của đích khác bị bỏ. Trả về các món còn lại (nếu cùng đích). */
+  async begin(target) {
+    if ((await localDb.kvGet(TARGET_KEY)) !== target) {
+      await localDb.cartClear();
+      await localDb.kvSet(TARGET_KEY, target);
+    }
+    return localDb.cartList();
+  },
+
+  /** Thêm 1 phần (đã có thì cộng số lượng, tối đa 99). */
+  async add(product) {
+    const existing = (await localDb.cartList()).find((i) => i.productId === product.id);
     await localDb.cartPut({
       productId: product.id,
       name: product.name,
       price: product.price,
       imageUrl: product.imageUrl,
-      quantity: Math.min(99, (existing?.quantity || 0) + quantity),
+      quantity: Math.min(99, (existing?.quantity || 0) + 1),
       note: existing?.note ?? null,
     });
-    return publish();
+    return localDb.cartList();
   },
 
-  /** Đặt lại số lượng; về 0 thì xóa khỏi giỏ. */
+  /** Đặt lại số lượng; về 0 thì bỏ khỏi phiếu. */
   async setQuantity(productId, quantity) {
     const item = (await localDb.cartList()).find((i) => i.productId === productId);
-    if (!item) return publish();
-    if (quantity <= 0) await localDb.cartRemove(productId);
-    else await localDb.cartPut({ ...item, quantity: Math.min(99, quantity) });
-    return publish();
+    if (item) {
+      if (quantity <= 0) await localDb.cartRemove(productId);
+      else await localDb.cartPut({ ...item, quantity: Math.min(99, quantity) });
+    }
+    return localDb.cartList();
   },
 
   async setNote(productId, note) {
@@ -45,11 +54,15 @@ export const cart = {
 
   async clear() {
     await localDb.cartClear();
-    return publish();
+    await localDb.kvRemove(TARGET_KEY);
   },
 
-  /** Tạm tính (giá thật do máy chủ tính lại khi đặt). */
-  total: (items) => items.reduce((s, i) => s + i.price * i.quantity, 0),
+  /** Tạm tính và tổng số phần. */
+  totals: (items) => ({
+    count: items.reduce((n, i) => n + i.quantity, 0),
+    sum: items.reduce((s, i) => s + i.price * i.quantity, 0),
+  }),
 
-  refresh: publish,
+  /** Đổi sang dữ liệu gửi API: [{ productId, quantity, note }]. */
+  toRequest: (items) => items.map((i) => ({ productId: i.productId, quantity: i.quantity, note: i.note || null })),
 };

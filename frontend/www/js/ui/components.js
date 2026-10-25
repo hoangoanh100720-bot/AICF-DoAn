@@ -1,233 +1,273 @@
 /**
- * COMPONENT GIAO DIỆN TÁI SỬ DỤNG - mọi màn hình dùng chung, đảm bảo giao diện đồng nhất:
+ * COMPONENT GIAO DIỆN DÙNG CHUNG - cùng ngôn ngữ thiết kế với app nhân viên AICF (staff/ui.js, core/form-sheet.js):
  *   toast()          thông báo nổi ngắn
- *   openSheet()      hộp thoại trượt từ dưới lên (dùng thẻ <dialog> gốc: tự khóa focus, Esc để đóng)
- *   confirmDialog()  hỏi Có / Không, trả Promise<boolean>
- *   formSheet()      FORM TỰ SINH từ danh sách trường (dùng cho mọi màn thêm / sửa)
- *   asyncView()      vùng "đang tải -> có dữ liệu | rỗng | lỗi + nút thử lại"
- *   emptyState(), errorState(), skeleton(), statusChip(), productThumb(), setHeader()
+ *   sheet()          hộp thoại kéo lên từ dưới (full = tràn màn hình), nút Back của Android đóng hộp trên cùng
+ *   confirmBox()     hỏi Có / Không (thay window.confirm), trả Promise<boolean>
+ *   formSheet()      FORM TỰ SINH từ danh sách trường (Template Method: kiểm tra -> khóa nút -> gửi -> báo lỗi tại chỗ)
+ *   toolbar(), pill(), statusPill(), emptyState(), spinner(), errorState(), field(), productThumb(), poll()
+ * Mọi nội dung từ máy chủ đưa vào trang bằng textContent (hàm h()), không innerHTML.
  */
-import { h, mount } from '../core/dom.js';
-import { STATUS_LABEL } from '../core/format.js';
-import { icons } from './icons.js';
+import { h } from '../core/dom.js';
+import { STATUS } from '../core/format.js';
+import { icon } from './icons.js';
 
-/* ------------------------------ Thanh tiêu đề ------------------------------ */
+/* ------------------------------ Thông báo nổi ------------------------------ */
 
-/** Đổi tiêu đề và các nút bên phải thanh tiêu đề của màn hình hiện tại. */
-export function setHeader(title, ...actions) {
-  document.getElementById('page-title').textContent = title;
-  mount(document.getElementById('header-actions'), ...actions);
+/** @param {'info'|'ok'|'error'} kind */
+export function toast(message, kind = 'info') {
+  const box = document.getElementById('toasts');
+  const el = h('div', { class: 'toast toast-' + kind, role: kind === 'error' ? 'alert' : 'status' }, message);
+  box.append(el);
+  setTimeout(() => el.remove(), kind === 'error' ? 5000 : 2500);
 }
 
-/** Nút biểu tượng (có nhãn cho trình đọc màn hình). */
-export const iconButton = (icon, label, onclick) =>
-  h('button', { class: 'icon-btn', type: 'button', 'aria-label': label, title: label, onclick, html: icon });
+export const toastError = (err) => toast(err?.message || 'Có lỗi xảy ra, vui lòng thử lại.', 'error');
 
-/* ------------------------------ Toast ------------------------------ */
-
-/** @param {'info'|'success'|'error'} type */
-export function toast(message, type = 'info', ms = 3000) {
-  const el = h('div', { class: 'toast' + (type === 'info' ? '' : ' toast-' + type) }, message);
-  document.getElementById('toasts').appendChild(el);
-  setTimeout(() => el.remove(), ms);
-}
-
-/** Hiện lỗi API (hoặc lỗi bất kỳ) bằng toast đỏ. */
-export const toastError = (err) => toast(err?.message || 'Có lỗi xảy ra', 'error', 4500);
-
-/* ------------------------------ Hộp thoại ------------------------------ */
+/* ------------------------------ Phần tử nhỏ ------------------------------ */
 
 /**
- * Mở hộp thoại dạng "bottom sheet".
- * @param {object} opts
- * @param {string} opts.title
- * @param {Node} opts.body
- * @param {Node[]} [opts.footer]  các nút cuối hộp thoại
- * @returns {{dialog: HTMLDialogElement, close: () => void}}
+ * Nút "Quay lại" của màn đang mở. Khung app (app.js) đặt hàm này trước khi vẽ mỗi màn:
+ * màn mở từ mục "Thêm" / chuông thông báo (không nằm trên thanh dưới) thì có, màn trên thanh dưới thì null.
  */
-export function openSheet({ title, body, footer = [] }) {
-  const dialog = h('dialog', { class: 'sheet', 'aria-label': title },
-    h('div', { class: 'sheet-head' },
-      h('h2', { style: { fontSize: 'var(--text-lg)' } }, title),
-      iconButton(icons.close, 'Đóng', () => close())),
-    h('div', { class: 'sheet-body' }, body),
-    footer.length ? h('div', { class: 'sheet-foot' }, footer) : null);
-  const opener = document.activeElement;
-  const close = () => dialog.close();
-  dialog.addEventListener('close', () => {
-    dialog.remove();
-    opener?.focus?.(); // trả focus về nút đã mở hộp thoại
-  });
-  // Bấm ra nền mờ bên ngoài thì đóng
-  dialog.addEventListener('click', (e) => { if (e.target === dialog) close(); });
-  document.body.appendChild(dialog);
-  dialog.showModal();
-  return { dialog, close };
+let backAction = null;
+export const setBackAction = (fn) => { backAction = fn; };
+
+/** Thanh tiêu đề của 1 màn: [nút quay lại] + chữ to bên trái, các nút bên phải. */
+export function toolbar(title, ...actions) {
+  const back = backAction;
+  backAction = null; // chỉ thanh tiêu đề đầu tiên của màn có nút quay lại
+  return h('div', { class: 'st-toolbar' },
+    h('div', { class: 'st-title' },
+      back ? h('button', { class: 'icon-btn st-back', type: 'button', 'aria-label': 'Quay lại', 'data-act': 'back', onclick: back }, icon('back', 22)) : null,
+      h('h1', null, title)),
+    actions.length ? h('div', { class: 'st-actions' }, actions) : null);
 }
 
+/** Tem nhỏ bo tròn. kind: '' | ok | warn | bad | info */
+export const pill = (text, kind = '') => h('span', { class: 'st-pill' + (kind ? ' ' + kind : '') }, text);
+
+/** Tem trạng thái đơn (Chờ pha / Đang pha / ...). */
+export const statusPill = (status) => pill(...(STATUS[status] || [status, '']));
+
+export const emptyState = (iconName, title, hint, action) => h('div', { class: 'st-empty' },
+  icon(iconName, 34), h('strong', null, title), hint ? h('p', null, hint) : null, action || null);
+
+export const spinner = (text = 'Đang tải…') => h('div', { class: 'st-empty', 'aria-busy': 'true' }, h('p', null, text));
+
+export const errorState = (err, retry) => emptyState(err?.status === 0 ? 'alert' : 'alert',
+  err?.status === 0 ? 'Mất kết nối máy chủ' : 'Không tải được dữ liệu', err?.message,
+  retry ? h('button', { class: 'btn btn-ghost', type: 'button', onclick: retry }, 'Thử lại') : null);
+
+/** Nhóm "nhãn + ô nhập". */
+export const field = (label, control, hint) => h('div', { class: 'field' },
+  h('label', { for: control.id || null }, label), control, hint ? h('p', { class: 'hint' }, hint) : null);
+
+/** Ảnh món; không có ảnh / ảnh lỗi thì khung tách cà phê trên nền màu (màu đổi theo nhóm món). */
+export function productThumb(p) {
+  const placeholder = () => {
+    let hash = 0;
+    for (const ch of p.categoryName || p.name || '') hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+    return h('div', { class: 'placeholder tint-' + (hash % 4), 'aria-hidden': 'true' }, icon('coffee', 34));
+  };
+  if (!p.imageUrl) return placeholder();
+  const img = h('img', { class: 'thumb', src: p.imageUrl, alt: '', loading: 'lazy' });
+  img.addEventListener('error', () => img.replaceWith(placeholder()));
+  return img;
+}
+
+/* ------------------------------ Hộp thoại kéo lên ------------------------------ */
+
+const stack = []; // các hộp đang mở, cái trên cùng ở cuối
+
+/**
+ * Mở hộp thoại kéo lên. opts: { title, body, footer, full, onClose }.
+ * Trả về { el, body, close, setTitle, setFooter }.
+ */
+export function sheet(opts = {}) {
+  const titleEl = h('h2', null, opts.title || '');
+  const closeBtn = h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Đóng' }, icon('x', 20));
+  const body = h('div', { class: 'st-sheet-body' }, opts.body || null);
+  const footer = h('div', { class: 'st-sheet-foot', hidden: !opts.footer }, opts.footer || null);
+  const panel = h('div', { class: 'sheet-panel st-sheet' + (opts.full ? ' full' : '') },
+    h('div', { class: 'sheet-grip', 'aria-hidden': 'true' }),
+    h('div', { class: 'sheet-head' }, titleEl, closeBtn), body, footer);
+  const el = h('div', { class: 'sheet st-layer', role: 'dialog', 'aria-modal': 'true', 'aria-label': opts.title || '' },
+    h('div', { class: 'sheet-backdrop' }), panel);
+  const api = {
+    el, body, closed: false,
+    setTitle: (t) => { titleEl.textContent = t; },
+    setFooter: (node) => { footer.replaceChildren(...(node ? [node] : [])); footer.hidden = !node; },
+    close() {
+      if (api.closed) return;
+      api.closed = true;
+      const i = stack.indexOf(api);
+      if (i >= 0) stack.splice(i, 1);
+      el.remove();
+      if (opts.onClose) opts.onClose();
+    },
+  };
+  el.querySelector('.sheet-backdrop').addEventListener('click', () => api.close());
+  closeBtn.addEventListener('click', () => api.close());
+  stack.push(api);
+  document.body.append(el);
+  return api;
+}
+
+/** Đóng hộp trên cùng (nút Back Android / phím Esc). Trả true nếu có hộp để đóng. */
+export function closeTopSheet() {
+  const top = stack[stack.length - 1];
+  if (!top) return false;
+  top.close();
+  return true;
+}
+
+/** Đóng hết (khi chuyển màn hình). */
+export function closeAllSheets() {
+  while (stack.length) stack[stack.length - 1].close();
+}
+
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeTopSheet(); });
+
 /** Hỏi xác nhận. @returns {Promise<boolean>} */
-export function confirmDialog(message, { title = 'Xác nhận', okLabel = 'Đồng ý', danger = false } = {}) {
+export function confirmBox({ title = 'Xác nhận', message, okText = 'Đồng ý', danger = false }) {
   return new Promise((resolve) => {
     let answered = false;
-    const answer = (v) => { answered = true; resolve(v); sheet.close(); };
-    const sheet = openSheet({
-      title,
-      body: h('p', null, message),
-      footer: [
-        h('button', { class: 'btn btn-secondary', type: 'button', onclick: () => answer(false) }, 'Hủy'),
-        h('button', { class: 'btn' + (danger ? ' btn-danger' : ''), type: 'button', onclick: () => answer(true) }, okLabel),
-      ],
-    });
-    sheet.dialog.addEventListener('close', () => { if (!answered) resolve(false); });
+    const done = (v) => { if (!answered) { answered = true; resolve(v); } };
+    const sh = sheet({ title, onClose: () => done(false) });
+    sh.body.append(h('p', { class: 'st-confirm-text' }, message));
+    sh.setFooter(h('div', { class: 'st-actions' },
+      h('button', { class: 'btn btn-ghost', type: 'button', onclick: () => sh.close() }, 'Không'),
+      h('button', { class: 'btn ' + (danger ? 'btn-danger' : 'btn-primary'), type: 'button', 'data-act': 'confirm',
+        onclick: () => { done(true); sh.close(); } }, okText)));
   });
 }
 
 /* ------------------------------ Form tự sinh ------------------------------ */
 
 /**
- * Tạo 1 ô nhập theo cấu hình. Các kiểu: text | password | email | number | url | textarea | select | checkbox.
- * @param {object} f  { name, label, type, required, min, max, placeholder, hint, options: [{value,label}] }
- * @param {any} value giá trị ban đầu
+ * Tạo 1 ô nhập theo cấu hình. Kiểu: text | password | email | tel | number | textarea | select | switch.
+ * @param {object} f  { name, label, type, required, min, max, minLength, placeholder, hint, options: [{value,label}] }
  */
-export function field(f, value) {
+function control(f, value) {
   const id = 'f-' + f.name + '-' + Math.random().toString(36).slice(2, 7);
-  if (f.type === 'checkbox') {
-    return h('label', { class: 'checkbox', dataset: { field: f.name } },
-      h('input', { type: 'checkbox', id, name: f.name, checked: !!value }), f.label);
+  if (f.type === 'switch') {
+    const input = h('input', { type: 'checkbox', id, name: f.name, checked: !!value });
+    return h('label', { class: 'mod-row', for: id, dataset: { field: f.name } },
+      h('span', { class: 'mod-text' }, h('strong', null, f.label), f.hint ? h('p', { class: 'note' }, f.hint) : null),
+      h('span', { class: 'mod-switch' }, input, h('span', { class: 'mod-knob' })));
   }
+  const common = { id, name: f.name, required: !!f.required, placeholder: f.placeholder || null, autocomplete: f.autocomplete || 'off' };
   let input;
-  const common = { id, name: f.name, class: 'input', required: !!f.required, placeholder: f.placeholder || null };
-  if (f.type === 'textarea') {
-    input = h('textarea', common, value ?? '');
-  } else if (f.type === 'select') {
-    input = h('select', common,
-      !f.required ? h('option', { value: '' }, '— Chọn —') : null,
+  if (f.type === 'textarea') input = h('textarea', { ...common, rows: 3 }, value ?? '');
+  else if (f.type === 'select') {
+    input = h('select', common, !f.required ? h('option', { value: '' }, '— Chọn —') : null,
       (f.options || []).map((o) => h('option', { value: o.value, selected: String(o.value) === String(value ?? '') }, o.label)));
   } else {
     input = h('input', {
-      ...common, type: f.type || 'text', value: value ?? '',
-      min: f.min ?? null, max: f.max ?? null, minlength: f.minLength ?? null,
-      autocomplete: f.autocomplete || null, inputmode: f.type === 'number' ? 'numeric' : null,
+      ...common, type: f.type || 'text', value: value ?? '', min: f.min ?? null, max: f.max ?? null,
+      minlength: f.minLength ?? null, inputmode: f.type === 'number' ? 'numeric' : null,
     });
   }
   return h('div', { class: 'field', dataset: { field: f.name } },
-    h('label', { for: id }, f.label, f.required ? ' *' : ''),
-    input,
-    f.hint ? h('span', { class: 'hint' }, f.hint) : null,
-    h('span', { class: 'error', role: 'alert' }));
+    h('label', { for: id }, f.label, f.required ? ' *' : ''), input,
+    f.hint ? h('p', { class: 'hint' }, f.hint) : null, h('p', { class: 'err', role: 'alert' }));
 }
 
-/** Đọc giá trị form theo cấu hình trường (đổi number / checkbox về đúng kiểu). */
+/** Vẽ các ô nhập theo cấu hình (dùng chung cho formSheet và form đặt thẳng trên trang). */
+export const formFields = (fields, initial = {}) => fields.map((f) => control(f, initial[f.name] ?? f.default));
+
+/** Đọc giá trị form theo cấu hình trường (đổi number / switch về đúng kiểu). */
 export function readForm(form, fields) {
   const out = {};
   for (const f of fields) {
     const el = form.elements[f.name];
     if (!el) continue;
-    if (f.type === 'checkbox') out[f.name] = el.checked;
+    if (f.type === 'switch') out[f.name] = el.checked;
     else if (f.type === 'number') out[f.name] = el.value === '' ? null : Number(el.value);
     else out[f.name] = el.value.trim() === '' ? null : el.value.trim();
   }
   return out;
 }
 
-/** Hiện lỗi trả về từ backend ("name: không được để trống") ngay dưới ô tương ứng. */
+/** Hiện lỗi máy chủ trả về ("name: không được để trống") ngay dưới ô tương ứng. Trả true nếu đã hiện được. */
 export function showFieldErrors(form, err) {
-  form.querySelectorAll('.field .error').forEach((e) => { e.textContent = ''; });
+  form.querySelectorAll('.field .err').forEach((e) => { e.textContent = ''; });
   form.querySelectorAll('[aria-invalid]').forEach((e) => e.removeAttribute('aria-invalid'));
   let shown = false;
   for (const d of err?.details || []) {
     const [name, ...rest] = d.split(':');
-    const box = form.querySelector(`[data-field="${name.trim()}"]`);
-    if (box) {
-      box.querySelector('.error') && (box.querySelector('.error').textContent = rest.join(':').trim());
-      box.querySelector('.input')?.setAttribute('aria-invalid', 'true');
-      shown = true;
-    }
+    const box = form.querySelector(`.field[data-field="${name.trim()}"]`);
+    if (!box) continue;
+    box.querySelector('.err').textContent = rest.join(':').trim();
+    box.querySelector('input, select, textarea')?.setAttribute('aria-invalid', 'true');
+    shown = true;
   }
   return shown;
 }
 
 /**
- * HỘP THOẠI FORM TỰ SINH - viết 1 lần, dùng cho mọi màn thêm/sửa (danh mục, món, bàn, hồ sơ, cài đặt...).
- * @param {object} opts
- * @param {string} opts.title
- * @param {object[]} opts.fields      cấu hình trường (xem field())
- * @param {object} [opts.initial]     giá trị ban đầu (khi sửa)
- * @param {string} [opts.submitLabel]
- * @param {(data) => Promise<any>} opts.onSubmit  gửi lên máy chủ; ném lỗi thì form hiện lỗi, không đóng
+ * HỘP THOẠI FORM TỰ SINH - viết 1 lần, dùng cho mọi màn thêm / sửa (món, danh mục, bàn, nhân viên, hồ sơ...).
+ * Khung xử lý cố định: kiểm tra trên máy -> khóa nút -> onSubmit (gọi API) -> xong: đóng + báo
+ *                                                                            -> lỗi: hiện ngay trong hộp, mở lại nút.
+ * @param {object} o
+ * @param {string} o.title
+ * @param {object[]} o.fields
+ * @param {object} [o.initial]
+ * @param {string} [o.submitText]
+ * @param {'primary'|'ok'|'danger'} [o.kind]
+ * @param {(data) => Promise<any>} o.onSubmit
+ * @param {string} [o.success]  câu báo khi xong
+ * @param {Node} [o.extra]      phần thêm dưới form (vd nút Xóa)
  */
-export function formSheet({ title, fields, initial = {}, submitLabel = 'Lưu', onSubmit }) {
+export function formSheet({ title, fields, initial = {}, submitText = 'Lưu', kind = 'primary', onSubmit, success, extra }) {
   const formId = 'form-' + Math.random().toString(36).slice(2, 8);
-  const submit = h('button', { class: 'btn', type: 'submit', form: formId }, submitLabel);
-  const form = h('form', { id: formId, class: 'stack', novalidate: true },
-    fields.map((f) => field(f, initial[f.name] ?? f.default)));
-  const sheet = openSheet({
-    title, body: form,
-    footer: [h('button', { class: 'btn btn-secondary', type: 'button', onclick: () => sheet.close() }, 'Hủy'), submit],
-  });
+  const err = h('p', { class: 'form-error', role: 'alert' });
+  const btn = h('button', { class: 'btn btn-' + kind + ' btn-lg btn-block', type: 'submit', form: formId }, submitText);
+  const form = h('form', { id: formId, class: 'st-form', novalidate: true },
+    formFields(fields, initial), err, extra || null);
+  const sh = sheet({ title, body: form, footer: btn });
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (!form.reportValidity()) return; // kiểm tra required/min/max ngay trên máy trước khi gửi
-    submit.disabled = true;
+    err.textContent = '';
+    if (!form.reportValidity()) return; // required / min / max kiểm tra ngay trên máy
+    btn.disabled = true;
     try {
       await onSubmit(readForm(form, fields));
-      sheet.close();
-    } catch (err) {
-      if (!showFieldErrors(form, err)) toastError(err);
-    } finally {
-      submit.disabled = false;
+      sh.close();
+      if (success) toast(success, 'ok');
+    } catch (ex) {
+      if (!showFieldErrors(form, ex)) err.textContent = ex.message;
+      btn.disabled = false;
     }
   });
-  form.querySelector('input, select, textarea')?.focus();
-  return sheet;
+  form.querySelector('input:not([type=checkbox]), select, textarea')?.focus();
+  return sh;
 }
 
-/* ------------------------------ Trạng thái hiển thị ------------------------------ */
-
-export const emptyState = (emoji, title, text, action) =>
-  h('div', { class: 'empty' }, h('div', { class: 'emoji', 'aria-hidden': 'true' }, emoji),
-    h('strong', null, title), text ? h('p', null, text) : null, action || null);
-
-export const errorState = (err, retry) =>
-  emptyState(err?.status === 0 ? '📡' : '⚠️',
-    err?.status === 0 ? 'Mất kết nối' : 'Không tải được dữ liệu',
-    err?.message,
-    retry ? h('button', { class: 'btn btn-secondary', type: 'button', onclick: retry }, 'Thử lại') : null);
-
-/** Khung xương (skeleton) đúng hình dạng nội dung sắp hiện, thay cho vòng quay. */
-export const skeleton = (n = 3, height = 72) =>
-  h('div', { class: 'stack-sm', 'aria-busy': 'true', 'aria-label': 'Đang tải' },
-    Array.from({ length: n }, () => h('div', { class: 'skeleton', style: { height: height + 'px' } })));
+/* ------------------------------ Tự làm mới ------------------------------ */
 
 /**
- * VÙNG DỮ LIỆU BẤT ĐỒNG BỘ dùng lại ở mọi màn hình:
- * hiện skeleton -> gọi loader() -> vẽ bằng render(data) | lỗi + nút "Thử lại".
- * Trả về phần tử có thêm hàm .reload() để làm mới.
+ * Chạy fn ngay và lặp lại mỗi ms khi màn hình đang hiện (tạm dừng khi app ở nền).
+ * Lượt trước chưa xong (mạng chậm) thì bỏ qua lượt mới, tránh dồn nhiều yêu cầu. Trả về { stop, now }.
  */
-export function asyncView(loader, render, { skeletonRows = 3, skeletonHeight = 72 } = {}) {
-  const box = h('div');
-  const load = async (silent = false) => {
-    if (!silent) mount(box, skeleton(skeletonRows, skeletonHeight));
-    try {
-      mount(box, await render(await loader(), load));
-    } catch (err) {
-      console.error(err);
-      if (!silent) mount(box, errorState(err, () => load()));
-      else toastError(err);
-    }
+export function poll(fn, ms) {
+  let stopped = false;
+  let running = false;
+  const tick = async () => {
+    if (stopped || running || document.hidden) return;
+    running = true;
+    try { await fn(); } catch { /* lỗi mạng tạm thời: lần sau thử lại */ } finally { running = false; }
   };
-  box.reload = load;
-  load();
-  return box;
-}
-
-/* ------------------------------ Phần tử nhỏ ------------------------------ */
-
-export const statusChip = (status) => h('span', { class: 'status status-' + status }, STATUS_LABEL[status] || status);
-
-/** Ảnh món, không có ảnh thì hiện biểu tượng danh mục. */
-export function productThumb(p) {
-  return p.imageUrl
-    ? h('img', { src: p.imageUrl, alt: '', loading: 'lazy', onerror: (e) => e.target.replaceWith(h('span', null, p.categoryIcon || '☕')) })
-    : h('span', { 'aria-hidden': 'true' }, p.categoryIcon || '☕');
+  const timer = setInterval(tick, ms);
+  const onVisible = () => { if (!document.hidden) tick(); };
+  document.addEventListener('visibilitychange', onVisible);
+  tick();
+  return {
+    now: tick,
+    stop() {
+      stopped = true;
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    },
+  };
 }

@@ -5,6 +5,9 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springdoc.core.customizers.OperationCustomizer;
+import vn.aicf.mobile.common.CrudController;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -29,7 +32,7 @@ import org.springframework.context.annotation.Configuration;
  *
  * <h3>Vì sao đưa vào đồ án</h3>
  * <ul>
- *   <li>Báo cáo: thầy cô thấy ngay hệ thống có những API REST nào (32 đường dẫn, chia 10 nhóm).</li>
+ *   <li>Báo cáo: thầy cô thấy ngay hệ thống có những API REST nào (47 API trên 31 đường dẫn, chia 10 nhóm).</li>
  *   <li>Kiểm thử backend độc lập với app: gọi thử từng API, xem mã trả về 200 / 400 / 401 / 403 / 409.</li>
  *   <li>Người làm frontend biết chính xác phải gửi JSON gì, nhận về JSON gì.</li>
  * </ul>
@@ -41,6 +44,8 @@ import org.springframework.context.annotation.Configuration;
  *   <li>LỚP NÀY                     : tên, mô tả, phiên bản API + nút "Authorize" để dán JWT</li>
  *   <li>@Tag trên mỗi Controller    : tên NHÓM API, vd @Tag(name = "06. Đơn hàng")</li>
  *   <li>@Operation trên mỗi hàm     : câu mô tả ngắn của từng API (dòng chữ cạnh đường dẫn)</li>
+ *   <li>@Schema trên trường DTO     : mô tả + giá trị ví dụ của từng trường JSON</li>
+ *   <li>crudSummaries() (lớp này)   : thêm tên tài nguyên vào mô tả 15 API CRUD dùng chung</li>
  *   <li>SecurityConfig              : cho phép mở trang Swagger không cần đăng nhập</li>
  * </ul>
  * Bỏ Swagger đi thì app vẫn chạy bình thường: chỉ mất trang tài liệu, các API không bị ảnh hưởng.
@@ -61,8 +66,11 @@ public class OpenApiConfig {
                 .info(new Info()
                         .title("AICF Coffee Mobile - REST API")
                         .version("1.0.0")
-                        .description("API cho app di động đặt món quán cà phê: xác thực JWT / Firebase, thực đơn, "
-                                + "đơn hàng, thông báo FCM, thống kê và Chat AI. Dữ liệu lưu trong SQLite."))
+                        .description("REST API (Spring Boot) cho app bán hàng NỘI BỘ của quán cà phê - dành cho chủ quán (OWNER), "
+                                + "quản lý (MANAGER) và nhân viên bán hàng (STAFF), không có phần cho khách. "
+                                + "Gồm: đăng nhập JWT / Google (Firebase), người dùng, thực đơn, sơ đồ bàn, gọi món - pha chế - thu tiền, "
+                                + "thông báo FCM, Trợ lý AI, thống kê. Dữ liệu lưu trong SQLite. "
+                                + "Thử: 01. Xác thực > POST /api/auth/login (nhanvien / nhanvien123) > chép token > bấm Authorize."))
                 // Áp dụng kiểu xác thực cho MỌI API: Swagger tự gắn header "Authorization: Bearer <token>"
                 // vào request khi gọi thử (API công khai như /api/products vẫn gọi được không cần token)
                 .addSecurityItem(new SecurityRequirement().addList(scheme))
@@ -71,5 +79,27 @@ public class OpenApiConfig {
                 //   2. bấm "Authorize" -> dán token -> từ đó gọi thử được các API cần đăng nhập
                 .components(new Components().addSecuritySchemes(scheme, new SecurityScheme()
                         .type(SecurityScheme.Type.HTTP).scheme("bearer").bearerFormat("JWT")));
+    }
+
+    /**
+     * 15 API của Danh mục / Món / Bàn dùng chung 1 lớp cha {@link CrudController} nên cùng 1 câu mô tả
+     * ("Lấy danh sách", "Thêm"...). Hàm này đọc tên nhóm trong {@code @Tag} của controller con
+     * (vd "04. Món" -> "món") rồi chèn vào câu mô tả: "Lấy danh sách món", "Thêm món (OWNER, MANAGER)".
+     * OperationCustomizer: springdoc gọi hàm này cho TỪNG API lúc dựng trang Swagger.
+     */
+    @Bean
+    public OperationCustomizer crudSummaries() {
+        return (operation, handler) -> {
+            Class<?> type = handler.getBeanType();
+            Tag tag = type.getAnnotation(Tag.class);
+            if (!CrudController.class.isAssignableFrom(type) || tag == null || operation.getSummary() == null) {
+                return operation;
+            }
+            String resource = tag.name().replaceFirst("^\\d+\\.\\s*", "").toLowerCase();
+            String s = operation.getSummary();
+            int bracket = s.indexOf(" (");
+            operation.setSummary(bracket < 0 ? s + " " + resource : s.substring(0, bracket) + " " + resource + s.substring(bracket));
+            return operation;
+        };
     }
 }

@@ -1,50 +1,54 @@
-# AICF Coffee Mobile — Đồ án môn Lập trình thiết bị di động
+# AICF Coffee
 
-Ứng dụng di động đặt món cho quán cà phê, phát triển lại từ dự án **AICF** theo hướng gọn, dễ đọc, dễ chấm:
+App di động **dành cho chủ quán cà phê** mua về dùng trong quán: nhân viên bán hàng gọi món – pha chế – thu tiền, quản lý sửa thực đơn và xem doanh thu, chủ quán quản lý tài khoản và cài đặt. **Không có phần cho khách.**
 
-- **Frontend** (`frontend/`): app di động viết bằng HTML/CSS/JavaScript thuần (ES Modules, không cần công cụ build), chạy được theo 2 cách:
-  - **PWA**: mở trên trình duyệt điện thoại → "Thêm vào màn hình chính", chạy toàn màn hình, mở được khi mất mạng.
+Phát triển lại từ dự án **AICF** (bản 2.0, lấy từ GitHub `NhatT4n21/AICF`), gói gọn cho đồ án:
+
+- **Giao diện giữ nguyên design và trải nghiệm của app nhân viên AICF** (`web-customer/nhan-vien.html`): bảng màu "cà phê rang", phông Be Vietnam Pro, thanh trên + thanh điều hướng dưới theo vai trò, mọi thao tác trong hộp thoại kéo lên, sơ đồ bàn theo khu vực, màn chọn món lưới ảnh, màn Pha chế 3 cột, thanh toán tiền mặt có tiền thối, Tổng quan dạng KPI, Trợ lý AI dạng bong bóng chat. CSS `style.css` + `staff.css` chép từ AICF.
+- **Frontend** (`frontend/`): HTML/CSS/JavaScript thuần (ES Modules, không cần build), chạy được:
+  - **PWA**: mở trên trình duyệt điện thoại → "Thêm vào màn hình chính", chạy toàn màn hình.
   - **App Android** đóng gói bằng **Capacitor** (`frontend/android`), lưu dữ liệu cục bộ bằng **SQLite**.
-- **Backend** (`backend/`): **REST API Spring Boot 3 (Java 21)**, cơ sở dữ liệu **SQLite**, xác thực **JWT**, tích hợp **Firebase** (đăng nhập Google + thông báo đẩy FCM) và **Chat AI** dùng lại từ AICF (Gemini / Claude, có chế độ cơ bản khi không có khóa API).
-
-Bỏ phần web quản lý và app desktop của AICF; mọi chức năng (khách, nhân viên, quản trị) nằm trong một app di động.
+- **Backend** (`backend/`): **REST API Spring Boot 3 (Java 21)** dùng chung cho mọi thiết bị trong quán – **47 API, 10 nhóm**, CSDL **SQLite**, xác thực **JWT**, **Firebase** (đăng nhập Google + thông báo đẩy FCM), **Trợ lý AI** dùng lại từ AICF (Gemini / Claude, có chế độ cơ bản khi không có khóa API).
 
 ```
 AICF-DoAn/
 ├── backend/                     Spring Boot REST API
 │   ├── src/main/java/vn/aicf/mobile/
 │   │   ├── common/              phần dùng lại: CrudService, CrudController, BaseEntity, xử lý lỗi
-│   │   ├── config/              bảo mật JWT, CORS, Swagger, dữ liệu mẫu, phục vụ PWA
-│   │   ├── domain/              Entity (ánh xạ bảng SQLite)
+│   │   ├── config/              bảo mật JWT + phân quyền 3 vai trò, CORS, Swagger, tài khoản ban đầu, phục vụ PWA
+│   │   ├── domain/              Entity (ánh xạ bảng SQLite), Role, OrderStatus (luật chuyển trạng thái)
 │   │   ├── repository/          truy vấn Spring Data JPA
-│   │   ├── service/             nghiệp vụ (đơn hàng, thống kê, thông báo…)
-│   │   │   ├── ai/              Chat AI: Gemini, Claude, công cụ dữ liệu, chế độ cơ bản
+│   │   ├── service/             nghiệp vụ (bán hàng, thống kê, thông báo, tài khoản…)
+│   │   │   ├── ai/              Trợ lý AI: Gemini, Claude, công cụ dữ liệu, chế độ cơ bản
 │   │   │   └── firebase/        Firebase Admin SDK: xác thực Google, gửi FCM
 │   │   └── web/                 Controller REST + DTO
 │   ├── src/main/resources/
 │   │   ├── application.yml      cấu hình (có chú thích)
 │   │   └── db/schema.sql        LƯỢC ĐỒ SQLITE (chú thích từng bảng, từng cột)
-│   │       db/data.sql          dữ liệu mẫu
-│   ├── src/test/…/ApiFlowTest   kiểm thử tích hợp toàn bộ API
+│   │       db/data.sql          dữ liệu mẫu (thực đơn, bàn)
+│   ├── src/test/…/ApiFlowTest   kiểm thử tích hợp toàn bộ API + Swagger
 │   └── run.cmd
 ├── frontend/
 │   ├── www/                     giao diện app (PWA)
 │   │   ├── index.html, manifest.webmanifest, sw.js (service worker)
-│   │   ├── css/app.css          design token + component
+│   │   ├── css/                 style.css + staff.css (design AICF), app.css (phần riêng)
+│   │   ├── fonts/               Be Vietnam Pro (đóng gói sẵn, giấy phép OFL)
 │   │   └── js/
 │   │       ├── core/            HTTP client, router, store, DOM, định dạng
-│   │       ├── data/            repository REST, SQLite cục bộ, phiên đăng nhập, giỏ hàng
+│   │       ├── data/            repository REST, SQLite cục bộ, phiên đăng nhập, phiếu gọi món nháp
 │   │       ├── firebase/        cấu hình, đăng nhập Google, thông báo đẩy
-│   │       ├── ui/              component tái sử dụng, trang CRUD tổng quát
-│   │       └── pages/           từng màn hình
+│   │       ├── ui/              component dùng chung (sheet, form tự sinh…), trang CRUD tổng quát
+│   │       └── pages/           từng màn hình + hộp thoại bill / chọn món / thanh toán
 │   ├── android/                 dự án Android (Capacitor) – mở bằng Android Studio
 │   ├── tests/e2e.mjs            kiểm thử giao diện đầu-cuối (Chrome headless)
 │   ├── capacitor.config.json
 │   └── package.json
 └── docs/
+    ├── Phan-cong-nhiem-vu.docx  phân công 5 thành viên theo nhóm REST API, file code từng người
+    ├── Huong-dan-REST-API-Spring.docx  hướng dẫn đọc / viết REST API bằng Spring Boot
     ├── flows.md                 sơ đồ luồng hoạt động các chức năng (Mermaid)
     ├── database.md              mô tả cơ sở dữ liệu (ERD, từng bảng)
-    └── api.md                   danh sách REST API + ví dụ
+    └── api.md                   danh sách 47 REST API + ví dụ
 ```
 
 ---
@@ -64,34 +68,38 @@ Lần đầu Maven tải thư viện mất 1–3 phút. Khi thấy `Started Mobi
 |---|---|
 | <http://localhost:8090> | **App (PWA)**. Trên Chrome máy tính: F12 → bật chế độ điện thoại (Ctrl+Shift+M) cho giống app |
 | <http://localhost:8090/swagger-ui.html> | **Tài liệu REST API** tự sinh, gọi thử từng API (bấm *Authorize*, dán token) |
-| `backend/data/aicf-mobile.db` | **File SQLite** – mở bằng [DB Browser for SQLite](https://sqlitebrowser.org/) để xem bảng |
+| `backend/data/aicf-ban-hang.db` | **File SQLite** – mở bằng [DB Browser for SQLite](https://sqlitebrowser.org/) để xem bảng |
 
-**Khách không cần tài khoản để xem:** mở app là vào thẳng *Thực đơn*, tìm món, thêm vào giỏ. Chỉ khi bấm *Đặt món* (hoặc mở *Đơn hàng*, *Trợ lý AI*) app mới mời đăng nhập / đăng ký, xong tự quay lại giỏ hàng với món còn nguyên. Đơn hàng cần gắn với tài khoản để khách theo dõi đơn, nhận thông báo, tự hủy đơn và để quán chống đơn ảo.
-
-Tài khoản mẫu (tạo tự động lần đầu):
+Tài khoản ban đầu (tạo tự động lần đầu chạy; màn đăng nhập có nút bấm để điền nhanh):
 
 | Tên đăng nhập | Mật khẩu | Vai trò | Vào app thấy |
 |---|---|---|---|
-| `khach` | `khach123` | Khách hàng | Thực đơn, Giỏ hàng, Đơn hàng, Trợ lý AI, Tài khoản |
-| `staff` | `staff123` | Nhân viên | Bảng đơn cần làm, Thực đơn, Trợ lý AI |
-| `admin` | `admin123` | Quản trị | Tổng quan doanh thu, Đơn hàng, Quản lý món/danh mục/bàn, Người dùng, Cài đặt AI |
+| `chu` | `chu123` | Chủ quán | Tổng quan, Bàn, Pha chế, Đơn hàng · Thêm: Trợ lý AI, Thực đơn & bàn, Nhân viên, **Cài đặt quán & AI** |
+| `quanly` | `quanly123` | Quản lý | Tổng quan, Bàn, Pha chế, Đơn hàng · Thêm: Trợ lý AI, Thực đơn & bàn, Nhân viên (chỉ tài khoản nhân viên) |
+| `nhanvien` | `nhanvien123` | Nhân viên bán hàng | Bàn, Pha chế, Đơn hàng, Trợ lý AI, Tôi |
+
+`APP_SEED_DEMO=false`: lần đầu chỉ tạo tài khoản chủ quán `chu / chu123`, chủ quán tự tạo tài khoản cho nhân viên ở mục **Nhân viên**. Nhớ đổi mật khẩu khi dùng thật.
 
 **Dùng trên điện thoại thật (PWA):** điện thoại và máy tính cùng Wi-Fi → mở `http://<IP máy tính>:8090`.
-(Muốn cài PWA lên màn hình chính và nhận Web Push cần HTTPS; với `localhost` trên máy tính thì Chrome cho phép sẵn.)
+
+> **Đã chạy bản cũ (có phần khách)?** Bản này dùng CSDL mới `aicf-ban-hang.db` (cấu trúc bảng đơn hàng khác). Tắt máy chủ cũ rồi chạy lại `run.cmd`; file cũ `aicf-mobile.db` không còn dùng, xóa được.
 
 ### Kịch bản demo gợi ý
-1. **Chưa đăng nhập**: mở app → tìm "latte", lọc danh mục → thêm món vào giỏ → **tắt hẳn app rồi mở lại: giỏ vẫn còn** (SQLite/LocalDb).
-2. Giỏ hàng → *Đăng nhập để đặt món* → đăng nhập `khach / khach123` → app quay lại giỏ → chọn bàn, ghi chú "ít đá" → *Đặt món* → màn chi tiết đơn có thanh tiến trình.
-3. Mở cửa sổ ẩn danh, đăng nhập `staff` → *Đơn cần làm* → *Nhận đơn → Bắt đầu pha → Đã xong*.
-4. Quay lại cửa sổ khách: trạng thái tự cập nhật, chấm đỏ ở *Tài khoản → Thông báo* (có Firebase thì nhận thêm thông báo đẩy).
-5. *Trợ lý AI*: khách hỏi "Gợi ý cho mình 1 món", "Đơn của tôi tới đâu rồi?"; admin hỏi "Doanh thu hôm nay?".
-6. Đăng nhập `admin` → *Tổng quan* (doanh thu, biểu đồ 7 ngày, món bán chạy) → *Quản lý* thêm/sửa/xóa món, bàn.
+1. Đăng nhập **nhanvien** → *Bàn*: sơ đồ bàn theo khu vực. Chạm **Bàn 03** → màn chọn món mở ngay: tìm "latte", lọc nhóm, chạm món để thêm (góc ảnh hiện ×2).
+2. **Tắt hẳn app rồi mở lại, chạm lại Bàn 03: các món chọn dở vẫn còn** (phiếu nháp trong SQLite / LocalDb).
+3. *Xem món đã chọn* → ghi chú "ít đá" → *Gửi pha chế* → bill Bàn 03 (Chờ pha), ô bàn chuyển cam.
+4. Mở cửa sổ ẩn danh (hoặc điện thoại thứ 2) đăng nhập **quanly** → chuông có thông báo "Đơn mới · Bàn 03".
+5. *Pha chế* → *Bắt đầu* → *Xong* → sơ đồ bàn báo đỏ "Đồ đã xong · mang ra" → chạm bàn → *Đã mang ra*.
+6. *Thu tiền* → Tiền mặt → bấm "200.000" → app hiện **tiền thối** → *Xác nhận* → bàn trống lại.
+7. *Trợ lý AI*: nhân viên hỏi "Còn bàn trống không?", quản lý hỏi "Doanh thu hôm nay?" (nhân viên hỏi thì bị từ chối).
+8. **quanly** → *Tổng quan* (doanh thu tách tiền mặt / chuyển khoản, biểu đồ 7 ngày, món bán chạy) → *Thực đơn & bàn* thêm món / bàn → *Nhân viên* tạo tài khoản mới.
+9. **chu** → *Cài đặt quán & AI*: sửa giờ mở cửa (nhãn "Đang mở cửa" trên thanh trên đổi theo), nhập khóa API AI.
 
 ---
 
 ## 2. App Android (Capacitor)
 
-File cài sẵn: `frontend/android/app/build/outputs/apk/debug/app-debug.apk` (đã build và chạy thử trên máy ảo Pixel 7).
+File cài: `frontend/android/app/build/outputs/apk/debug/app-debug.apk`.
 
 Build lại sau khi sửa giao diện:
 
@@ -104,9 +112,9 @@ npx cap open android      (mở Android Studio → Run)
 cd android && gradlew.bat assembleDebug
 ```
 
-- **Địa chỉ máy chủ:** app trên máy ảo mặc định gọi `http://10.0.2.2:8090` (= máy tính chạy máy ảo). Điện thoại thật: ở màn Đăng nhập mở *Địa chỉ máy chủ* → nhập `http://<IP máy tính>:8090` → *Kiểm tra*.
-- **SQLite trên điện thoại:** plugin `@capacitor-community/sqlite`, CSDL `aicf_local` gồm 3 bảng `kv`, `cart_items`, `cached_products` (xem `frontend/www/js/data/local-db.js`). Trên trình duyệt (PWA) không có SQLite nên dùng localStorage với cùng giao diện hàm.
-- Plugin dùng: `@capacitor-community/sqlite`, `@capacitor/push-notifications`, `@capacitor/app` (nút Back cứng).
+- **Địa chỉ máy chủ:** app trên máy ảo mặc định gọi `http://10.0.2.2:8090` (= máy tính chạy máy ảo). Điện thoại thật: ở màn Đăng nhập bấm *Địa chỉ máy chủ* → nhập `http://<IP máy tính>:8090` → *Kiểm tra & lưu*.
+- **SQLite trên điện thoại:** plugin `@capacitor-community/sqlite`, CSDL `aicf_local` gồm 3 bảng `kv`, `cart_items` (phiếu gọi món nháp), `cached_products` (xem `frontend/www/js/data/local-db.js`). Trên trình duyệt (PWA) không có SQLite nên dùng localStorage với cùng giao diện hàm.
+- Plugin dùng: `@capacitor-community/sqlite`, `@capacitor/push-notifications`, `@capacitor/app` (nút Back cứng: đóng hộp thoại đang mở trước, rồi mới lùi màn).
 
 ---
 
@@ -114,8 +122,8 @@ cd android && gradlew.bat assembleDebug
 
 | Tính năng Firebase | Dùng ở đâu |
 |---|---|
-| **Authentication (Google)** | Nút *Tiếp tục với Google* (PWA). App lấy ID token → `POST /api/auth/firebase` → backend kiểm tra bằng Firebase Admin SDK → cấp JWT riêng |
-| **Cloud Messaging (FCM)** | Đơn đổi trạng thái → khách nhận thông báo đẩy; có đơn mới → nhân viên nhận thông báo. Backend gửi bằng Admin SDK (`PushSender`), app nhận qua service worker (PWA) hoặc plugin Push (Android) |
+| **Authentication (Google)** | Nút *Đăng nhập bằng Google* (PWA). App lấy ID token → `POST /api/auth/firebase` → backend kiểm tra bằng Firebase Admin SDK → cấp JWT riêng. **Chỉ email đã được chủ quán nhập vào tài khoản** mới vào được |
+| **Cloud Messaging (FCM)** | Đơn mới / gọi thêm → cả quán nhận (quầy pha chế); pha xong → người mở bill nhận "mang ra"; đơn hủy → chủ quán, quản lý nhận. Backend gửi bằng Admin SDK (`PushSender`), app nhận qua service worker (PWA) hoặc plugin Push (Android) |
 
 Các bước:
 1. Tạo dự án tại <https://console.firebase.google.com>.
@@ -123,22 +131,22 @@ Các bước:
 3. **App web:** *Project settings → General → Add app (Web)* → chép cấu hình vào `frontend/www/js/firebase/firebase-config.js`.
    *Authentication → Sign-in method* → bật **Google**. *Cloud Messaging → Web Push certificates* → tạo khóa → dán vào `VAPID_KEY`.
 4. **App Android:** *Add app (Android)*, package `vn.aicf.mobile` → tải `google-services.json` vào `frontend/android/app/` → đặt `NATIVE_PUSH_ENABLED = true` → `npx cap sync android` và build lại.
-5. Trong app: *Tài khoản → Bật thông báo đẩy*.
+5. Trong app: *Thêm / Tôi → Bật thông báo đẩy*.
 
 > File service account là **bí mật** (đã có trong `.gitignore`). Cấu hình web trong `firebase-config.js` là khóa công khai phía client, đưa vào app được.
 
 ---
 
-## 4. Chat AI (tận dụng từ dự án AICF)
+## 4. Trợ lý AI (tận dụng từ dự án AICF)
 
 Giữ nguyên kiến trúc Trợ lý AI của AICF, rút gọn cho đồ án:
 
-- `LlmProvider` (mẫu **Strategy**): `GeminiProvider` (REST) và `ClaudeProvider` (SDK chính thức `anthropic-java`, model mặc định `claude-opus-5-5`, có bật dự phòng phía máy chủ khi bị bộ lọc an toàn từ chối). Thêm hãng AI mới = thêm 1 lớp.
-- `AiToolRegistry`: AI **không tự bịa số liệu** mà gọi "công cụ" đọc dữ liệu thật: `get_menu`, `get_shop_info`, `get_my_orders` (mọi người), `get_sales_summary`, `get_active_orders` (chỉ nhân viên/quản trị – kiểm tra quyền 2 lớp).
+- `LlmProvider` (mẫu **Strategy**): `GeminiProvider` (REST) và `ClaudeProvider` (SDK chính thức `anthropic-java`, model mặc định `claude-opus-5-5`). Thêm hãng AI mới = thêm 1 lớp.
+- `AiToolRegistry`: AI **không tự bịa số liệu** mà gọi "công cụ" đọc dữ liệu thật: `get_menu`, `get_shop_info`, `get_open_orders`, `get_table_status` (mọi vai trò), `get_sales_summary` (chỉ chủ quán / quản lý – kiểm tra quyền 2 lớp).
 - `OfflineAssistant`: **chế độ cơ bản** trả lời theo từ khóa khi chưa có khóa API hoặc AI đang lỗi → demo không cần Internet.
 - Lịch sử chat lưu trong bảng `chat_messages`.
 
-Bật AI thật: *Admin → Tài khoản → Cài đặt quán & AI* → chọn dịch vụ, nhập khóa API (lưu trong bảng `app_settings`, không bao giờ trả lại cho app). Hoặc đặt biến môi trường trước khi chạy: `set GEMINI_API_KEY=...` (hoặc `set AI_PROVIDER=claude` + `set ANTHROPIC_API_KEY=...`).
+Bật AI thật: đăng nhập **chu** → *Thêm → Cài đặt quán & AI* → chọn dịch vụ, nhập khóa API (lưu trong bảng `app_settings`, không bao giờ trả lại cho app). Hoặc đặt biến môi trường trước khi chạy: `set GEMINI_API_KEY=...` (hoặc `set AI_PROVIDER=claude` + `set ANTHROPIC_API_KEY=...`).
 
 ---
 
@@ -151,21 +159,21 @@ Controller (web)  →  Service  →  Repository  →  Entity  ⇄  SQLite
 ```
 | Thành phần tái sử dụng | Dùng lại ở |
 |---|---|
-| `common/CrudService<E, REQ, RES>` (Template Method): khung thêm/đọc/sửa/xóa + móc `validate`, `beforeDelete`, `findAll(filters)` | `CategoryService`, `ProductService`, `TableService` (mỗi lớp ~50 dòng) |
+| `common/CrudService<E, REQ, RES>` (Template Method): khung thêm/đọc/sửa/xóa + móc `validate`, `beforeDelete`, `findAll(filters)` | `CategoryService`, `ProductService`, `TableService` |
 | `common/CrudController<REQ, RES>`: sinh sẵn 5 API REST chuẩn | `CategoryController`, `ProductController`, `TableController` (chỉ khai báo đường dẫn) |
 | `common/BaseEntity`: `id`, `created_at`, `updated_at` tự điền | mọi Entity có 3 cột này |
 | `common/GlobalExceptionHandler` + `ApiException`: mọi lỗi trả cùng 1 dạng JSON | toàn bộ API |
-| `common/LocalDateTimeConverter`: ngày giờ ⇄ TEXT trong SQLite | tự áp dụng mọi cột ngày giờ |
-| `OrderStatus.canMoveTo()`: luật chuyển trạng thái đặt ở 1 chỗ | API nhân viên, khách tự hủy |
-| `NotificationService`: lưu hộp thư + đẩy FCM | đơn mới, đổi trạng thái, khách hủy |
+| `OrderStatus.canMoveTo()`: luật chuyển trạng thái bill đặt ở 1 chỗ | API đơn hàng, Trợ lý AI |
+| `Role.isManager()` + `SecurityConfig`: phân quyền 3 vai trò tập trung | toàn bộ API |
+| `NotificationService`: lưu hộp thư + đẩy FCM (`notifyTeam`, `notifyManagers`, `notifyUsers`) | mở bill, gọi thêm, pha xong, hủy đơn |
 
 ### Frontend – các lớp
 | Thư mục | Vai trò | Ví dụ tái sử dụng |
 |---|---|---|
 | `core/` | hạ tầng không phụ thuộc nghiệp vụ | `HttpClient` (gắn JWT, đổi lỗi), `Router` (route + phân quyền), `createStore` (Observer) |
-| `data/` | truy cập dữ liệu (Repository) | `createCrudRepository('categories')` cho mọi tài nguyên CRUD; `localDb` (Adapter: SQLite ↔ localStorage) |
-| `ui/` | component dùng chung | `formSheet()` form tự sinh từ cấu hình trường; `asyncView()` tải/rỗng/lỗi/thử lại; **`crudPage()`** dựng cả màn quản lý từ 1 đoạn cấu hình (dùng cho Món, Danh mục, Bàn) |
-| `pages/` | màn hình | mỗi file export `render(ctx)` |
+| `data/` | truy cập dữ liệu (Repository) | `createCrudRepository('categories')` cho mọi tài nguyên CRUD; `localDb` (Adapter: SQLite ↔ localStorage); `cart` (phiếu gọi món nháp) |
+| `ui/` | component dùng chung (cùng ngôn ngữ thiết kế AICF) | `sheet()` hộp thoại kéo lên; `formSheet()` form tự sinh từ cấu hình trường; `poll()` tự làm mới; **`crudPage()`** dựng cả màn quản lý từ 1 đoạn cấu hình (Món, Danh mục, Bàn) |
+| `pages/` | màn hình | `tables.js` sơ đồ bàn (State: mỗi trạng thái bàn 1 màu + dòng chữ), `bill.js`, `picker.js`, `payment.js` (Strategy: mỗi cách trả 1 đối tượng), `kitchen.js`, `dashboard.js`… |
 
 ---
 
@@ -173,8 +181,8 @@ Controller (web)  →  Service  →  Repository  →  Entity  ⇄  SQLite
 
 | Lệnh | Kiểm tra |
 |---|---|
-| `cd backend && run.cmd test` | 6 bài kiểm thử tích hợp (JUnit + MockMvc trên SQLite thật): bảo mật, luồng đơn hàng đầy đủ, luật trạng thái, ràng buộc dữ liệu, CRUD, chat |
-| `cd frontend && node tests/e2e.mjs http://localhost:8090` | 40 bước kiểm thử giao diện trên Chrome ẩn (cỡ màn hình điện thoại), chụp ảnh từng màn vào `tests/ket-qua/` – dùng làm hình minh họa báo cáo |
+| `cd backend && run.cmd test` | 9 bài kiểm thử tích hợp (JUnit + MockMvc trên SQLite thật): phân quyền 3 vai trò, vòng bán hàng tại bàn đầy đủ (mở bill, gọi thêm, bớt món, pha chế, thu tiền + tiền thối), mang đi trả trước, luật hủy đơn, quản lý tài khoản, CRUD, Trợ lý AI, giờ mở cửa, **Swagger đủ 47 API / 10 nhóm** |
+| `cd frontend && node tests/e2e.mjs http://localhost:8090` | 48 bước kiểm thử giao diện trên Chrome ẩn (cỡ màn hình điện thoại), chụp ảnh từng màn vào `tests/ket-qua/` – dùng làm hình minh họa báo cáo |
 
 ---
 
@@ -183,8 +191,10 @@ Controller (web)  →  Service  →  Repository  →  Entity  ⇄  SQLite
 | Phần | Công nghệ |
 |---|---|
 | Backend | Java 21, Spring Boot 3.5 (Web, Data JPA, Security, Validation), Hibernate + SQLite dialect, sqlite-jdbc, JJWT, Firebase Admin SDK 9, anthropic-java, springdoc-openapi (Swagger), Lombok |
-| CSDL | SQLite (máy chủ: `aicf-mobile.db`; điện thoại: `aicf_local`) |
-| Frontend | HTML5, CSS (design token, chế độ tối tự động), JavaScript ES Modules, Service Worker, Web App Manifest, Firebase JS SDK 10 |
+| CSDL | SQLite (máy chủ: `aicf-ban-hang.db`; điện thoại: `aicf_local`) |
+| Frontend | HTML5, CSS (design AICF: biến màu, chế độ tối tự động, phông Be Vietnam Pro), JavaScript ES Modules, Service Worker, Web App Manifest, Firebase JS SDK 10 |
 | Di động | Capacitor 8 (Android), @capacitor-community/sqlite, @capacitor/push-notifications |
+
+Tài liệu cho nhóm: [docs/Phan-cong-nhiem-vu.docx](docs/Phan-cong-nhiem-vu.docx) (phân công 5 thành viên) · [docs/Huong-dan-REST-API-Spring.docx](docs/Huong-dan-REST-API-Spring.docx) (hướng dẫn code REST API bằng Spring)
 
 Tài liệu chi tiết: [docs/flows.md](docs/flows.md) (sơ đồ luồng hoạt động) · [docs/database.md](docs/database.md) · [docs/api.md](docs/api.md)

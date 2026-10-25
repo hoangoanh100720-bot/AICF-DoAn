@@ -1,11 +1,8 @@
-Anh mac dinh cua trang web (hien khi quan chua tai anh rieng). Tat ca lay tu Unsplash, giay phep Unsplash License:
-duoc dung mien phi ca cho muc dich thuong mai, khong bat buoc ghi nguon (https://unsplash.com/license).
-Khi chu quan tai anh that (Quan ly -> Trang web), anh that tu thay cac anh nay.
+Anh minh hoa mon (dung trong du lieu mau backend/src/main/resources/db/data.sql).
+Lay tu Unsplash, giay phep Unsplash License: dung mien phi ca cho muc dich thuong mai,
+khong bat buoc ghi nguon (https://unsplash.com/license).
 
-hero-1.jpg      https://unsplash.com/photos/espresso-dripping-into-a-porcelain-mug-from-a-steel-machine-wiOEVPVRfW4
-hero-2.jpg      https://unsplash.com/photos/brown-coffee-beans-beside-white-ceramic-mug-h9Iq22JJlGk
 pha-che.jpg     https://unsplash.com/photos/person-making-latte-art-nzyzAUsbV0M
-ban-be.jpg      https://unsplash.com/photos/three-person-holding-beverage-cups-6VhPY27jdps
 latte.jpg       https://unsplash.com/photos/latte-art-in-brown-cup-in-macro-photography-RFHFV7lVQBY
 hat-ca-phe.jpg  https://unsplash.com/photos/coffee-beans-beside-coffee-powder-on-brown-wooden-board-KixfBEdyp64
 ly-va-hat.jpg   https://unsplash.com/photos/cup-of-coffee-surrounded-by-beans-Y6O6PHJRQms

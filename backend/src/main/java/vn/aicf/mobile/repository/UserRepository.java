@@ -30,6 +30,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     boolean existsByEmail(String email);
 
-    /** Dùng để gửi thông báo "có đơn mới" cho toàn bộ nhân viên + quản trị đang hoạt động. */
+    /** Dùng để gửi thông báo "có đơn mới" cho người trong quán đang hoạt động. */
     List<User> findByRoleInAndActiveTrue(Collection<Role> roles);
 }

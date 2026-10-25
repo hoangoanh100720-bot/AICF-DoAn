@@ -10,6 +10,6 @@ export const api = new HttpClient({
   getToken: () => session.token(),
   onUnauthorized: async () => {
     await session.signOut();
-    location.hash = '/login';
+    location.hash = '/login?expired=1';
   },
 });

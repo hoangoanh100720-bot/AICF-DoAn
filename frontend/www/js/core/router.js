@@ -2,8 +2,8 @@
  * ROUTER theo dấu # (hash routing) cho Single Page App.
  *
  * Khai báo route:
- *   { path: '/orders/:id', title: 'Chi tiết đơn', load: () => import('../pages/orders.js'), export: 'renderDetail',
- *     auth: true, roles: ['CUSTOMER'] }
+ *   { path: '/staff', title: 'Nhân viên', load: () => import('../pages/staff.js'),
+ *     auth: true, roles: ['OWNER', 'MANAGER'] }
  * - load: import() ĐỘNG -> chỉ tải code của màn hình khi mở tới (app khởi động nhanh hơn)
  * - auth: cần đăng nhập (chưa đăng nhập -> chuyển tới /login?next=<màn đang mở>);
  *   roles: chỉ các vai trò này được vào (không khai báo = mọi vai trò)
@@ -78,7 +78,7 @@ export class Router {
       const el = await render(ctx);
       if (id !== this.renderId) return; // người dùng đã chuyển màn hình khác trong lúc đang tải
       this.outlet.replaceChildren(el);
-      window.scrollTo(0, 0);
+      this.outlet.scrollTop = 0;
     } catch (err) {
       console.error(err);
       if (id === this.renderId) this.outlet.replaceChildren(this.renderError(err));

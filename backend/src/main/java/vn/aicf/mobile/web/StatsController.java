@@ -12,8 +12,8 @@ import vn.aicf.mobile.web.dto.StatsDtos.Dashboard;
 
 import java.time.LocalDate;
 
-/** API THỐNG KÊ (ADMIN): GET /api/stats/dashboard?date=YYYY-MM-DD (mặc định hôm nay). */
-@Tag(name = "09. Thống kê")
+/** API THỐNG KÊ (OWNER, MANAGER): GET /api/stats/dashboard?date=YYYY-MM-DD (mặc định hôm nay). */
+@Tag(name = "09. Thống kê", description = "Tổng quan doanh thu cho chủ quán / quản lý")
 @RestController
 @RequestMapping("/api/stats")
 public class StatsController {
@@ -25,7 +25,7 @@ public class StatsController {
     }
 
     @GetMapping("/dashboard")
-    @Operation(summary = "Doanh thu, số đơn, món bán chạy trong ngày + doanh thu 7 ngày (ADMIN)")
+    @Operation(summary = "Doanh thu (tách tiền mặt / chuyển khoản), số đơn, món bán chạy trong ngày + doanh thu 7 ngày (OWNER, MANAGER)")
     public Dashboard dashboard(@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return stats.dashboard(date == null ? LocalDate.now() : date);
     }

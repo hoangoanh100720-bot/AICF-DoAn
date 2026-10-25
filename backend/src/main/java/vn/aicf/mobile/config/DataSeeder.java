@@ -11,15 +11,15 @@ import vn.aicf.mobile.domain.User;
 import vn.aicf.mobile.repository.UserRepository;
 
 /**
- * Tạo TÀI KHOẢN MẪU lần đầu chạy (khi bảng users còn trống), để thử app ngay:
+ * Tạo TÀI KHOẢN BAN ĐẦU lần đầu chạy (khi bảng users còn trống), để chủ quán vào app ngay:
  * <pre>
- *   admin / admin123   - ADMIN    (chủ quán)
- *   staff / staff123   - STAFF    (nhân viên)
- *   khach / khach123   - CUSTOMER (khách hàng)
+ *   chu      / chu123       - OWNER   (chủ quán)
+ *   quanly   / quanly123    - MANAGER (quản lý)
+ *   nhanvien / nhanvien123  - STAFF   (nhân viên bán hàng)
  * </pre>
  * Không đặt trong data.sql vì mật khẩu phải được băm BCrypt bằng Java.
- * Tắt bằng biến môi trường APP_SEED_DEMO=false. Nhớ đổi mật khẩu khi dùng thật!
- * (Danh mục, món, bàn mẫu nằm trong db/data.sql.)
+ * APP_SEED_DEMO=false: chỉ tạo tài khoản chủ quán (chủ quán tự tạo tài khoản cho nhân viên trong app).
+ * Nhớ đổi mật khẩu khi dùng thật! (Danh mục, món, bàn mẫu nằm trong db/data.sql.)
  */
 @Slf4j
 @Component
@@ -38,13 +38,17 @@ public class DataSeeder implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        if (!props.seedDemoUsers() || users.count() > 0) {
+        if (users.count() > 0) {
             return;
         }
-        create("admin", "admin123", "Chủ quán", Role.ADMIN);
-        create("staff", "staff123", "Nhân viên pha chế", Role.STAFF);
-        create("khach", "khach123", "Khách hàng mẫu", Role.CUSTOMER);
-        log.info("Đã tạo tài khoản mẫu: admin/admin123, staff/staff123, khach/khach123");
+        create("chu", "chu123", "Chủ quán", Role.OWNER);
+        if (props.seedDemoUsers()) {
+            create("quanly", "quanly123", "Quản lý ca", Role.MANAGER);
+            create("nhanvien", "nhanvien123", "Nhân viên bán hàng", Role.STAFF);
+            log.info("Đã tạo tài khoản mẫu: chu/chu123, quanly/quanly123, nhanvien/nhanvien123");
+        } else {
+            log.info("Đã tạo tài khoản chủ quán: chu/chu123 - hãy đổi mật khẩu ngay");
+        }
     }
 
     private void create(String username, String password, String fullName, Role role) {

@@ -5,6 +5,10 @@ import org.springframework.transaction.annotation.Transactional;
 import vn.aicf.mobile.domain.AppSetting;
 import vn.aicf.mobile.repository.AppSettingRepository;
 
+import java.time.LocalTime;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 /**
  * Đọc / ghi cấu hình trong bảng APP_SETTINGS.
  * Quy tắc ưu tiên: giá trị trong CSDL (Admin sửa trên app) > giá trị mặc định truyền vào (từ application.yml).
@@ -43,5 +47,31 @@ public class SettingsService {
         AppSetting s = repository.findById(key).orElseGet(() -> new AppSetting(key, null));
         s.setValue(value == null ? "" : value.trim());
         repository.save(s);
+    }
+
+    /** Giờ mở cửa dạng "7:00 - 22:00" (lấy cặp giờ đầu tiên trong chuỗi). */
+    private static final Pattern HOURS = Pattern.compile("(\\d{1,2})[:hH](\\d{2})?\\s*[-–]\\s*(\\d{1,2})[:hH](\\d{2})?");
+
+    /**
+     * Quán có đang trong giờ mở cửa không, đọc từ chuỗi giờ mở cửa ("7:00 - 22:00 hằng ngày", "6h - 23h30").
+     * Mở qua đêm ("18:00 - 2:00") cũng đúng. Không đọc được giờ thì trả null (app không hiện nhãn).
+     */
+    public static Boolean openNow(String hours, LocalTime now) {
+        if (hours == null) {
+            return null;
+        }
+        Matcher m = HOURS.matcher(hours);
+        if (!m.find()) {
+            return null;
+        }
+        try {
+            LocalTime open = LocalTime.of(Integer.parseInt(m.group(1)) % 24, m.group(2) == null ? 0 : Integer.parseInt(m.group(2)));
+            LocalTime close = LocalTime.of(Integer.parseInt(m.group(3)) % 24, m.group(4) == null ? 0 : Integer.parseInt(m.group(4)));
+            return close.isAfter(open)
+                    ? !now.isBefore(open) && now.isBefore(close)
+                    : !now.isBefore(open) || now.isBefore(close);   // mở qua nửa đêm
+        } catch (java.time.DateTimeException e) {
+            return null;   // vd "25:00"
+        }
     }
 }

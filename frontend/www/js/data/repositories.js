@@ -36,7 +36,7 @@ export const productRepo = {
    */
   async menu() {
     try {
-      const items = await productCrud.list();
+      const items = await productCrud.list();   // GET /api/products (cần đăng nhập)
       localDb.cacheProducts(items).catch(() => { /* lưu thất bại không ảnh hưởng hiển thị */ });
       return { items, offline: false };
     } catch (e) {
@@ -50,7 +50,6 @@ export const productRepo = {
 
 export const authRepo = {
   login: (username, password) => api.post('/api/auth/login', { username, password }),
-  register: (data) => api.post('/api/auth/register', data),
   firebase: (idToken) => api.post('/api/auth/firebase', { idToken }),
 };
 
@@ -58,19 +57,20 @@ export const userRepo = {
   me: () => api.get('/api/users/me'),
   updateMe: (data) => api.put('/api/users/me', data),
   changePassword: (currentPassword, newPassword) => api.put('/api/users/me/password', { currentPassword, newPassword }),
-  list: () => api.get('/api/users'),
-  adminUpdate: (id, role, active) => api.put(`/api/users/${id}`, { role, active }),
+  list: () => api.get('/api/users'),                         // chủ quán / quản lý
+  create: (data) => api.post('/api/users', data),
+  adminUpdate: (id, data) => api.put(`/api/users/${id}`, data), // { fullName, phone, role, active, newPassword }
 };
 
 export const orderRepo = {
-  create: (data) => api.post('/api/orders', data),
-  my: () => api.get('/api/orders/my'),
+  create: (data) => api.post('/api/orders', data),                       // mở bill mới
+  active: () => api.get('/api/orders/active'),                           // bill đang mở
+  ofDay: (date) => api.get('/api/orders', { date }),                     // lịch sử 1 ngày
   get: (id) => api.get(`/api/orders/${id}`),
-  cancel: (id, reason) => api.post(`/api/orders/${id}/cancel`, { reason }),
-  active: () => api.get('/api/orders/active'),
-  ofDay: (date) => api.get('/api/orders', { date }),
+  addItems: (id, items) => api.post(`/api/orders/${id}/items`, { items }), // gọi thêm món
+  removeItem: (id, itemId) => api.delete(`/api/orders/${id}/items/${itemId}`),
   setStatus: (id, status, cancelReason) => api.patch(`/api/orders/${id}/status`, { status, cancelReason }),
-  markPaid: (id) => api.patch(`/api/orders/${id}/paid`),
+  pay: (id, paymentMethod, amountReceived) => api.post(`/api/orders/${id}/pay`, { paymentMethod, amountReceived }),
 };
 
 export const chatRepo = {

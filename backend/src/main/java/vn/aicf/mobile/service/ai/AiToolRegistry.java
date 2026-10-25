@@ -8,6 +8,7 @@ import vn.aicf.mobile.service.OrderService;
 import vn.aicf.mobile.service.ProductService;
 import vn.aicf.mobile.service.SettingsService;
 import vn.aicf.mobile.service.StatsService;
+import vn.aicf.mobile.service.TableService;
 import vn.aicf.mobile.web.dto.CatalogDtos.ProductResponse;
 import vn.aicf.mobile.web.dto.OrderDtos.OrderResponse;
 
@@ -21,12 +22,12 @@ import java.util.Map;
  * DANH SÁCH CÔNG CỤ của Chat AI (xem {@link AiTool}). Mọi công cụ chỉ ĐỌC dữ liệu, không sửa gì.
  *
  * <pre>
- *   Tên công cụ          Ai dùng được   Trả về
- *   get_menu             mọi người      thực đơn: danh mục, tên món, giá, còn bán không
- *   get_shop_info        mọi người      tên quán, địa chỉ, giờ mở cửa
- *   get_my_orders        mọi người      các đơn gần đây của chính người hỏi
- *   get_sales_summary    nhân viên+     doanh thu, số đơn, món bán chạy trong khoảng ngày
- *   get_active_orders    nhân viên+     các đơn đang xử lý
+ *   Tên công cụ          Ai dùng được         Trả về
+ *   get_menu             mọi người            thực đơn: danh mục, tên món, giá, còn bán không
+ *   get_shop_info        mọi người            tên quán, địa chỉ, giờ mở cửa
+ *   get_open_orders      mọi người            các bill đang mở (bàn nào, món gì, đang ở bước nào)
+ *   get_table_status     mọi người            bàn nào trống, bàn nào đang có khách
+ *   get_sales_summary    chủ quán, quản lý    doanh thu, số đơn, món bán chạy trong khoảng ngày
  * </pre>
  * Thêm công cụ mới = thêm 1 phần tử vào danh sách trong constructor. Các nhà cung cấp AI (Gemini, Claude)
  * và chế độ cơ bản đều dùng chung danh sách này.
@@ -36,10 +37,11 @@ public class AiToolRegistry {
 
     private final Map<String, AiTool> tools = new LinkedHashMap<>();
 
-    public AiToolRegistry(ProductService products, OrderService orders, StatsService stats, SettingsService settings) {
+    public AiToolRegistry(ProductService products, OrderService orders, StatsService stats, SettingsService settings,
+                          TableService tables) {
         register(new AiTool("get_menu",
                 "Lấy thực đơn của quán (tên món, danh mục, giá bằng đồng, mô tả, còn bán hay tạm hết). "
-                        + "Dùng khi khách hỏi có món gì, giá bao nhiêu, nhờ gợi ý món.",
+                        + "Dùng khi cần biết có món gì, giá bao nhiêu, món nào tạm hết, để tư vấn món cho khách.",
                 "{}", false,
                 (args, user) -> products.findAll().stream().map(AiToolRegistry::menuItem).toList()));
 
@@ -51,13 +53,9 @@ public class AiToolRegistry {
                         "address", settings.get(SettingsService.SHOP_ADDRESS, ""),
                         "hours", settings.get(SettingsService.SHOP_HOURS, ""))));
 
-        register(new AiTool("get_my_orders",
-                "Lấy tối đa 5 đơn hàng gần nhất CỦA NGƯỜI ĐANG HỎI (mã đơn, trạng thái, tổng tiền, các món).",
-                "{}", false,
-                (args, user) -> orders.myOrders(user).stream().limit(5).map(AiToolRegistry::orderBrief).toList()));
 
         register(new AiTool("get_sales_summary",
-                "Thống kê bán hàng trong khoảng ngày: doanh thu (chỉ đơn hoàn thành), tổng số đơn, số đơn hoàn thành, "
+                "Thống kê bán hàng trong khoảng ngày: doanh thu (đơn đã thu tiền), số bill đã thu tiền, tổng số đơn, "
                         + "số đơn hủy và các món bán chạy. Ngày theo định dạng YYYY-MM-DD.",
                 """
                 {"type":"object","properties":{
@@ -74,19 +72,39 @@ public class AiToolRegistry {
                     return stats.summary(from, to, 5);
                 }));
 
-        register(new AiTool("get_active_orders",
-                "Lấy các đơn đang xử lý (chờ xác nhận, đã nhận, đang pha, chờ lấy) để biết quán đang bận cỡ nào.",
-                "{}", true,
-                (args, user) -> orders.activeOrders().stream().map(AiToolRegistry::orderBrief).toList()));
+        register(new AiTool("get_open_orders",
+                "Lấy các bill đang mở: bàn / mang đi, các món, trạng thái (chờ pha, đang pha, xong chờ mang ra, đã phục vụ), "
+                        + "đã thu tiền chưa. Dùng để biết quán đang bận cỡ nào, bàn nào chưa thanh toán.",
+                "{}", false,
+                (args, user) -> orders.openOrders().stream().map(AiToolRegistry::orderBrief).toList()));
+
+        register(new AiTool("get_table_status",
+                "Lấy danh sách bàn đang dùng và cho biết bàn nào trống, bàn nào đang có khách (kèm mã bill).",
+                "{}", false,
+                (args, user) -> {
+                    Map<Long, OrderResponse> busy = new LinkedHashMap<>();
+                    orders.openOrders().stream().filter(o -> o.tableId() != null).forEach(o -> busy.put(o.tableId(), o));
+                    return tables.findAll().stream().filter(t -> t.active()).map(t -> {
+                        Map<String, Object> m = new LinkedHashMap<>();
+                        m.put("table", t.name());
+                        m.put("area", t.area());
+                        OrderResponse o = busy.get(t.id());
+                        m.put("status", o == null ? "trống" : "có khách");
+                        if (o != null) {
+                            m.put("bill", o.code() + " · " + o.statusLabel() + " · " + o.totalAmount() + " đ" + (o.paid() ? " (đã thu)" : ""));
+                        }
+                        return m;
+                    }).toList();
+                }));
     }
 
     private void register(AiTool tool) {
         tools.put(tool.name(), tool);
     }
 
-    /** Các công cụ người dùng này được phép dùng (khách không thấy công cụ doanh thu). */
+    /** Các công cụ người dùng này được phép dùng (nhân viên bán hàng không thấy công cụ doanh thu). */
     public List<AiTool> availableFor(AuthUser user) {
-        return tools.values().stream().filter(t -> !t.staffOnly() || user.isStaff()).toList();
+        return tools.values().stream().filter(t -> !t.managerOnly() || user.isManager()).toList();
     }
 
     /** Chạy 1 công cụ theo tên. Kiểm tra quyền LẦN NỮA ở đây phòng khi AI cố gọi công cụ không được cấp. */
@@ -95,7 +113,7 @@ public class AiToolRegistry {
         if (tool == null) {
             throw ApiException.badRequest("Không có công cụ " + name);
         }
-        if (tool.staffOnly() && !user.isStaff()) {
+        if (tool.managerOnly() && !user.isManager()) {
             throw ApiException.forbidden("Bạn không có quyền xem dữ liệu này");
         }
         return tool.handler().apply(args, user);
@@ -119,6 +137,7 @@ public class AiToolRegistry {
         m.put("status", o.statusLabel());
         m.put("total", o.totalAmount());
         m.put("table", o.tableName() == null ? "mang đi" : o.tableName());
+        m.put("paid", o.paid());
         m.put("createdAt", o.createdAt().toString());
         m.put("items", o.items().stream().map(i -> i.quantity() + " x " + i.productName()).toList());
         return m;

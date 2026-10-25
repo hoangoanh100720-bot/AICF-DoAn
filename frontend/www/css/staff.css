@@ -1,0 +1,425 @@
+/* =====================================================================
+   App nhan vien / chu quan tren dien thoai (nhan-vien.html). Dung chung bang mau, phong chu, nut, the voi css/style.css.
+   Bo cuc: tieu de tren cung, noi dung cuon o giua, thanh dieu huong duoi cung; hop thoai keo len (sheet) cho moi thao tac.
+   ===================================================================== */
+html, body.st-body { height: 100%; }
+body.st-body { overflow: hidden; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+body.st-locked { overflow: hidden; }
+#app { height: 100%; }
+.st-shell { height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
+.ok-text { color: var(--ok); font-weight: 600; }
+.warn-text { color: var(--warn); font-weight: 600; }
+.bad-text { color: var(--bad); font-weight: 600; }
+.grow { flex: 1; min-width: 0; }
+.danger { color: var(--bad) !important; }
+button { font-family: inherit; }
+
+/* ---------- Khung ---------- */
+.st-header {
+  display: flex; align-items: center; gap: 10px; padding: calc(8px + env(safe-area-inset-top)) 14px 8px;
+  background: var(--surface); border-bottom: 1px solid var(--line); flex: none;
+}
+.logo.sm { width: 28px; height: 28px; border-radius: 9px; box-shadow: none; }
+.st-shop { font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-header .st-pill { margin-left: auto; }
+.st-avatar {
+  width: 34px; height: 34px; border-radius: 50%; border: 0; display: grid; place-items: center; cursor: pointer;
+  background: linear-gradient(135deg, #efa64f, #b9611d); color: #fff; font-weight: 700; font-size: .8rem;
+}
+.st-avatar.big { width: 52px; height: 52px; font-size: 1.1rem; cursor: default; }
+.st-main { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 14px 14px 24px; }
+.st-nav {
+  flex: none; display: flex; background: var(--surface); border-top: 1px solid var(--line);
+  padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+}
+.st-nav-btn {
+  flex: 1; display: grid; justify-items: center; gap: 2px; padding: 6px 2px; border: 0; background: none; color: var(--muted);
+  font-size: .72rem; font-weight: 600; cursor: pointer; border-radius: 12px; position: relative;
+}
+.st-nav-btn.active { color: var(--brand); background: var(--accent-soft); }
+/* Cham do bao so thong bao chua doc cua Tro ly tren thanh dieu huong */
+.st-badge {
+  position: absolute; top: 1px; left: calc(50% + 6px); min-width: 17px; height: 17px; padding: 0 4px; border-radius: 999px;
+  background: var(--bad); color: #fff; font-size: .66rem; font-weight: 800; display: grid; place-items: center; line-height: 1;
+}
+
+.st-pill { display: inline-block; padding: .12em .7em; border-radius: 999px; font-size: .74rem; font-weight: 700; background: var(--surface-2); color: var(--muted); white-space: nowrap; }
+.st-pill.ok { background: color-mix(in srgb, var(--ok) 16%, var(--surface)); color: var(--ok); }
+.st-pill.warn { background: color-mix(in srgb, var(--warn) 18%, var(--surface)); color: var(--warn); }
+.st-pill.bad { background: color-mix(in srgb, var(--bad) 16%, var(--surface)); color: var(--bad); }
+.st-pill.info { background: var(--accent-soft); color: var(--brand); }
+
+/* ---------- Dang nhap ---------- */
+.st-login { min-height: 100vh; min-height: 100dvh; display: grid; align-content: center; gap: 16px; padding: 24px 18px; max-width: 460px; margin: 0 auto; overflow-y: auto; height: 100%; }
+.st-login-brand { text-align: center; }
+.st-login-brand .logo { width: 56px; height: 56px; border-radius: 18px; margin-bottom: 8px; }
+.st-login-brand h1 { margin: 0; font-size: 1.6rem; }
+.st-login-brand p { color: var(--muted); margin: 4px 0 0; }
+.st-login-links { display: flex; justify-content: center; gap: 18px; flex-wrap: wrap; }
+/* May quay: ban phim PIN, PIN vua cap, dai ten nguoi dang dung */
+.st-pin-box { display: grid; justify-items: center; gap: 14px; text-align: center; }
+.st-pin-dots { display: flex; gap: 12px; }
+.st-pin-dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--line-strong); }
+.st-pin-dot.on { background: var(--brand); border-color: var(--brand); }
+.st-pinpad { display: grid; grid-template-columns: repeat(3, 76px); gap: 12px; }
+.st-pin-key { height: 64px; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); color: var(--text); font-size: 1.5rem; font-weight: 600; display: grid; place-items: center; cursor: pointer; }
+.st-pin-key:active { background: var(--accent-soft); }
+.st-pin-key.ok { background: var(--brand); color: var(--on-brand); font-size: 1.1rem; border-color: var(--brand); }
+.st-pin-show { font-size: 2.6rem; font-weight: 800; letter-spacing: .3em; text-align: center; margin: 8px 0; }
+.st-user-banner { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 14px; background: var(--espresso); color: #fff; font-size: 1.15rem; }
+.st-user-banner strong { font-size: 1.35rem; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-user-banner .btn { display: inline-flex; align-items: center; gap: 4px; }
+.st-link { background: none; border: 0; color: var(--brand); font-weight: 600; cursor: pointer; text-decoration: none; padding: 6px; font-size: .95rem; }
+
+/* ---------- Chung ---------- */
+.st-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.st-toolbar h1 { font-size: 1.3rem; margin: 0; }
+.st-h { font-size: .95rem; margin: 18px 0 8px; color: var(--muted); font-weight: 700; }
+.st-chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+.st-chips.scroll { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 4px; }
+.st-chips.scroll::-webkit-scrollbar { display: none; }
+.st-chip { flex: none; min-height: 38px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font-weight: 600; font-size: .9rem; cursor: pointer; }
+.st-chip.on { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
+.st-empty { display: grid; justify-items: center; gap: 8px; text-align: center; color: var(--muted); padding: 34px 16px; }
+.st-empty strong { color: var(--text); }
+.st-empty p { margin: 0; max-width: 28em; }
+.st-empty .icon { color: var(--line-strong); }
+.st-search { margin-bottom: 8px; }
+.st-confirm-text { margin: 4px 16px 12px; font-size: 1.05rem; }
+.st-form { display: grid; gap: 12px; padding: 4px 16px 12px; }
+.st-expected { font-weight: 700; color: var(--brand-strong); font-size: 1.05rem; margin: 0; }
+.st-line { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px dashed var(--line); }
+.st-line.total { border-bottom: 0; border-top: 2px solid var(--line-strong); font-size: 1.15rem; margin-top: 6px; }
+.st-line.cancelled { text-decoration: line-through; opacity: .55; }
+.st-price { font-weight: 700; color: var(--brand-strong); white-space: nowrap; }
+.st-note { color: var(--muted); font-size: .85rem; }
+.st-note-line { color: var(--warn); font-weight: 600; margin: 4px 0; }
+.st-actions { display: flex; gap: 8px; align-items: stretch; }
+.st-actions > .btn { flex: 1; }
+.st-actions.wrap { flex-wrap: wrap; }
+.st-actions.sticky { position: sticky; bottom: 0; padding: 10px 0; background: linear-gradient(to top, var(--bg) 70%, transparent); margin-top: 10px; }
+.st-foot-stack { display: grid; gap: 8px; }
+.btn-ok { background: linear-gradient(180deg, color-mix(in srgb, var(--ok) 92%, #fff), var(--ok)); color: #fff; box-shadow: 0 6px 16px color-mix(in srgb, var(--ok) 30%, transparent); }
+.btn-danger { background: transparent; color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); }
+.btn.btn-sm.danger, .btn-ghost.danger { border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); }
+
+/* ---------- Hop thoai keo len ---------- */
+.st-layer { z-index: 100; }
+.sheet-panel.st-sheet { display: flex; flex-direction: column; padding: 8px 0 0; overflow: hidden; max-height: 92vh; max-height: 92dvh; }
+.sheet-panel.st-sheet.full { height: 100vh; height: 100dvh; max-height: none; max-width: none; border-radius: 0; padding-top: env(safe-area-inset-top); }
+.st-sheet .sheet-head { padding: 4px 8px 4px 16px; }
+.st-sheet-body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 4px 16px 16px; }
+.st-sheet-foot { flex: none; padding: 10px 16px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--bg); }
+.st-sheet-foot[hidden] { display: none; }
+.sheet-panel.st-sheet:not(.full) .st-sheet-body { flex: 0 1 auto; }
+
+/* ---------- Ban ---------- */
+.st-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 8px; font-size: .82rem; color: var(--muted); }
+.st-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.st-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--ok); flex: none; }
+.st-dot.busy { background: var(--accent); }
+.st-dot.pending { background: var(--bad); }
+.st-area { display: flex; align-items: baseline; gap: 10px; margin: 16px 0 8px; }
+.st-area strong { color: var(--brand-strong); font-size: 1.05rem; }
+.st-area span { color: var(--muted); font-size: .82rem; }
+.st-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+@media (min-width: 600px) { .st-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); } }
+.st-table {
+  text-align: left; display: grid; gap: 3px; align-content: start; min-height: 104px; padding: 12px; border-radius: 16px; cursor: pointer;
+  background: var(--surface); border: 1.5px solid var(--line); box-shadow: var(--shadow); color: var(--text);
+}
+.st-table.busy { background: color-mix(in srgb, var(--accent) 14%, var(--surface)); border-color: color-mix(in srgb, var(--accent) 70%, var(--line)); }
+.st-table.pending { background: color-mix(in srgb, var(--bad) 12%, var(--surface)); border-color: var(--bad); }
+.st-table:active { transform: scale(.98); }
+.st-table-head { display: flex; align-items: center; justify-content: space-between; }
+.st-table-head strong { font-size: 1.1rem; }
+.st-table-total { font-weight: 800; font-size: 1.05rem; }
+.st-table-sub { color: var(--muted); font-size: .8rem; }
+.st-table-alert { color: var(--bad); font-weight: 700; font-size: .85rem; }
+.st-table-free { color: var(--ok); font-weight: 700; margin-top: 4px; }
+.st-takeaway { margin-top: 14px; }
+
+/* ---------- Don cua ban ---------- */
+.st-order-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.st-banner { padding: 12px; border-radius: 14px; margin: 8px 0; }
+.st-banner.bad { background: color-mix(in srgb, var(--bad) 12%, var(--surface)); border: 1px solid var(--bad); }
+.st-banner p { margin: 0 0 8px; font-weight: 600; }
+.st-items { display: grid; }
+.st-item { display: flex; justify-content: space-between; gap: 10px; padding: 11px 0; border-bottom: 1px solid var(--line); }
+.st-item.cancelled { opacity: .5; text-decoration: line-through; }
+.st-item-main { display: grid; gap: 4px; justify-items: start; min-width: 0; }
+.st-item-side { display: grid; gap: 6px; justify-items: end; align-content: start; }
+.st-item-btns { display: flex; gap: 6px; }
+
+/* ---------- Chon mon ---------- */
+.st-products { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 6px; }
+@media (min-width: 560px) { .st-products { grid-template-columns: repeat(3, 1fr); } }
+.st-prod { text-align: left; display: grid; gap: 4px; padding: 6px 6px 10px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); cursor: pointer; color: var(--text); align-content: start; }
+.st-prod:active { transform: scale(.98); }
+.st-prod strong { font-size: .92rem; line-height: 1.25; padding: 0 4px; min-height: 2.4em; }
+.st-prod .st-price { padding: 0 4px; }
+.st-prod-img { position: relative; border-radius: 12px; overflow: hidden; }
+.st-prod-img .thumb, .st-prod-img .placeholder { width: 100%; aspect-ratio: 4 / 3; border-radius: 0; }
+.st-badge { position: absolute; top: 6px; right: 6px; min-width: 26px; text-align: center; padding: 2px 8px; border-radius: 999px; background: var(--accent); color: #2b1810; font-weight: 800; font-size: .8rem; }
+.st-cart-line { padding: 12px 0; border-bottom: 1px solid var(--line); display: grid; gap: 8px; }
+.st-cart-top { display: flex; justify-content: space-between; gap: 10px; }
+.st-cart-ctl { display: flex; gap: 10px; align-items: center; }
+.st-note-input { flex: 1; min-width: 0; min-height: 40px; padding: 6px 12px; border-radius: 12px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font: inherit; font-size: .9rem; }
+
+/* ---------- Thanh toan ---------- */
+.st-pay-total { font-size: 2.2rem; font-weight: 800; color: var(--brand-strong); margin: 4px 0 12px; }
+.st-pay-total.ok { color: var(--ok); }
+.st-seg { display: flex; gap: 6px; padding: 4px; border-radius: 14px; background: var(--surface-2); margin-bottom: 12px; }
+.st-seg-btn { flex: 1; min-height: 42px; border: 0; border-radius: 11px; background: transparent; color: var(--muted); font-weight: 700; font-size: .92rem; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 6px; }
+.st-seg-btn.on { background: var(--surface); color: var(--brand-strong); box-shadow: 0 2px 8px rgba(92, 47, 20, .12); }
+.st-seg-btn:disabled { opacity: .45; }
+.st-pane { display: grid; gap: 10px; }
+.st-pane input[type="text"], .st-pane input:not([type]) { width: 100%; min-height: 48px; padding: 10px 14px; font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--line-strong); border-radius: 14px; }
+.st-change { font-weight: 800; font-size: 1.1rem; margin: 0; min-height: 1.4em; }
+.st-change.ok { color: var(--ok); }
+.st-change.bad { color: var(--bad); }
+.st-radio { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+.st-radio input { accent-color: var(--brand); width: 20px; height: 20px; }
+.st-qr { display: grid; justify-items: center; gap: 8px; margin: 8px 0; }
+.st-receipt { margin: 0 0 12px; padding: 12px; background: #fff; color: #1d1009; border: 1px dashed var(--line-strong); border-radius: 12px; overflow-x: auto; font: 11px/1.45 ui-monospace, "Cascadia Mono", Consolas, monospace; white-space: pre; }
+.st-pre { margin: 8px 0 0; padding: 10px; background: var(--surface-2); border-radius: 10px; font: 11px/1.45 ui-monospace, "Cascadia Mono", Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 320px; overflow: auto; }
+
+/* ---------- Danh sach the ---------- */
+.st-cards { display: grid; gap: 10px; }
+.st-card { display: grid; gap: 4px; text-align: left; padding: 14px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); color: var(--text); }
+.st-card.click { cursor: pointer; }
+.st-card.late { border-color: var(--bad); border-width: 2px; }
+.st-card p { margin: 0; }
+.st-card-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.st-card-title { font-size: 1.1rem; }
+.st-card .st-actions { margin-top: 8px; }
+
+/* ---------- Cham cong ---------- */
+.att-card { text-align: center; display: grid; justify-items: center; gap: 4px; margin-bottom: 8px; }
+.att-clock { display: block; font-size: 2.6rem; line-height: 1.1; font-variant-numeric: tabular-nums; color: var(--text); }
+.att-btn { margin-top: 10px; min-height: 60px; font-size: 1.2rem; gap: 8px; }
+.att-status { margin: 8px 0 0; min-height: 1.4em; color: var(--muted); }
+.att-status.ok { color: var(--ok); font-weight: 700; }
+.att-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 6px 0; }
+.att-bar strong { flex: 1; text-align: center; min-width: 8em; }
+.att-bar select { flex: 1; min-width: 0; }
+.att-note { color: var(--warn); font-size: .8rem; text-align: left; margin: 8px 0 0; }
+
+/* ---------- Ca & ket ---------- */
+.st-kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 12px 0; }
+.st-kpis.wide { grid-template-columns: 1fr; }
+@media (min-width: 560px) { .st-kpis.wide { grid-template-columns: repeat(2, 1fr); } }
+.st-kpi { display: grid; gap: 2px; padding: 12px 14px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); }
+.st-kpi span { color: var(--muted); font-size: .8rem; }
+.st-kpi strong { font-size: 1.15rem; }
+.st-kpi.hero { grid-column: 1 / -1; background: linear-gradient(135deg, #8a4b24, #4d2711); border-color: transparent; }
+.st-kpi.hero span { color: #f3dfc9; }
+.st-kpi.hero strong { color: #fff; font-size: 1.5rem; }
+.st-kpi.wide { display: flex; align-items: center; gap: 12px; }
+.st-kpi.wide > div { display: grid; gap: 1px; }
+.st-kpi.wide small { color: var(--muted); font-size: .78rem; }
+.st-kpi.wide.hero small { color: #f0c48b; }
+.st-kpi-icon { width: 40px; height: 40px; flex: none; display: grid; place-items: center; border-radius: 12px; background: var(--accent-soft); color: var(--brand); }
+.st-kpi.hero .st-kpi-icon { background: rgba(255, 255, 255, .16); color: #fff; }
+.st-roster { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.st-roster label { flex: 1; }
+.st-roster select { max-width: 130px; min-height: 40px; }
+.st-stock-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--line); }
+.st-stock-row p { margin: 0; }
+.st-stock-row input { width: 130px; min-height: 42px; padding: 6px 10px; font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--line-strong); border-radius: 12px; text-align: right; }
+.st-eval { margin: 10px 0; }
+.st-finding { margin: 4px 0 0; font-size: .88rem; }
+.st-finding.bad { color: var(--bad); }
+.st-finding.warn { color: var(--warn); }
+.st-finding.good { color: var(--ok); }
+.st-finding.info { color: var(--muted); }
+
+/* ---------- Kho ---------- */
+.st-stock { display: flex; align-items: center; justify-content: space-between; gap: 10px; text-align: left; padding: 12px 14px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); color: var(--text); cursor: pointer; }
+.st-stock p { margin: 0; }
+.st-stock-qty { display: grid; justify-items: end; gap: 4px; }
+
+/* ---------- Tong quan ---------- */
+.st-bars { display: flex; align-items: flex-end; gap: 8px; height: 150px; margin-top: 10px; }
+.st-bar { flex: 1; display: grid; justify-items: center; align-content: end; gap: 4px; height: 100%; font-size: .72rem; color: var(--muted); }
+.st-bar i { display: block; width: 100%; max-width: 30px; border-radius: 8px 8px 4px 4px; background: linear-gradient(to top, #b9611d, #efa64f); }
+.st-bar i.today { background: linear-gradient(to top, #6d3817, #a9541a); }
+.st-bar-val { min-height: 1em; font-size: .68rem; }
+.st-top { display: flex; align-items: center; gap: 10px; padding: 8px 0; }
+.st-rank { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--brand); font-weight: 700; font-size: .85rem; flex: none; }
+.st-meter { height: 8px; border-radius: 6px; background: var(--surface-2); margin-top: 4px; overflow: hidden; }
+.st-meter i { display: block; height: 100%; border-radius: 6px; background: linear-gradient(to right, #d9862f, #efa64f); }
+.st-alert { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; margin-top: 8px; font-size: .92rem; }
+.st-alert.bad { background: color-mix(in srgb, var(--bad) 13%, var(--surface)); }
+.st-alert.warn { background: color-mix(in srgb, var(--warn) 15%, var(--surface)); }
+.st-alert.ok { background: color-mix(in srgb, var(--ok) 13%, var(--surface)); }
+.st-alert.info { background: var(--accent-soft); }
+.st-main .card { padding: 14px; margin-bottom: 12px; }
+
+/* ---------- Them / Toi ---------- */
+.st-me { display: flex; align-items: center; gap: 14px; }
+.st-me p { margin: 2px 0 0; }
+.st-menu { display: grid; border-radius: 16px; overflow: hidden; background: var(--surface); border: 1px solid var(--line); }
+.st-menu-item { display: flex; align-items: center; gap: 12px; padding: 14px; border: 0; border-bottom: 1px solid var(--line); background: none; color: var(--text); font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; text-align: left; }
+.st-menu-item span { flex: 1; }
+.st-menu-item:last-child { border-bottom: 0; }
+.st-menu-item.danger { color: var(--bad); }
+.st-foot { text-align: center; margin-top: 20px; }
+
+/* ---------- Tinh chinh sau khi kiem tra tren man hinh 390px ---------- */
+.st-item-main { align-items: start; align-content: start; }
+.st-actions > .btn { white-space: nowrap; padding: 0 .7em; font-size: .92rem; }
+.st-actions.wrap > .btn { flex: 1 1 42%; }
+.st-actions.wrap > .btn.wide { flex-basis: 100%; }
+.st-kpis.wide { grid-template-columns: repeat(2, 1fr); }
+.st-kpi.wide { display: grid; gap: 6px; align-content: start; }
+.st-kpi.wide.hero { grid-column: 1 / -1; }
+.st-kpi-icon { width: 34px; height: 34px; border-radius: 11px; }
+
+/* ---------- Chon vai tro luc dang nhap + man hinh Phan quyen ---------- */
+.st-roles { display: flex; flex-wrap: wrap; gap: 8px; }
+.st-role-chip { flex: 1 1 30%; min-height: 44px; padding: 0 10px; border-radius: 14px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font-weight: 600; font-size: .95rem; cursor: pointer; white-space: nowrap; }
+.st-role-chip.on { background: var(--brand); border-color: var(--brand); color: var(--on-brand); box-shadow: var(--shadow-sm, 0 2px 8px rgba(43, 24, 16, .18)); }
+.st-perms .st-roles { margin: 6px 0 4px; }
+.st-perm-group { padding: 14px 16px; margin: 10px 0; }
+.st-perm-group h3 { margin: 0 0 8px; font-size: 1rem; }
+.st-perm-group select { width: 100%; }
+.st-perm-row { display: flex; gap: 12px; align-items: flex-start; padding: 8px 0; border-top: 1px solid var(--line); cursor: pointer; }
+.st-perm-group h3 + .st-perm-row { border-top: 0; }
+.st-perm-row input[type=checkbox] { flex: none; width: 22px; height: 22px; margin-top: 2px; accent-color: var(--brand); }
+.st-perm-row span { display: grid; gap: 2px; min-width: 0; }
+.st-perm-row small { color: var(--muted); font-size: .82rem; line-height: 1.35; }
+.st-perms > .st-actions { margin-top: 12px; }
+/* ---------- Tro ly AI: hop thu + chat ---------- */
+.as-mode { margin: -4px 0 10px; font-size: .8rem; }
+.as-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+.as-tab { flex: 1; padding: 10px 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--muted); font: inherit; font-weight: 700; cursor: pointer; }
+.as-tab.on { background: var(--accent-soft); color: var(--brand); border-color: var(--brand); }
+.as-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.as-inbox { display: grid; gap: 8px; }
+.as-note { display: grid; gap: 6px; text-align: left; padding: 12px 14px; border: 1px solid var(--line); border-left-width: 5px; border-radius: 14px; background: var(--surface); color: var(--text); font: inherit; cursor: pointer; }
+.as-note.sev-GOOD { border-left-color: var(--ok); }
+.as-note.sev-INFO { border-left-color: var(--line-strong); }
+.as-note.sev-WARN { border-left-color: var(--warn); }
+.as-note.sev-BAD { border-left-color: var(--bad); }
+.as-note.unread { background: color-mix(in srgb, var(--accent-soft) 55%, var(--surface)); }
+.as-note.unread strong::before { content: '\25CF\00a0'; color: var(--brand); }
+.as-note-top { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.as-when { margin-left: auto; font-size: .78rem; color: var(--muted); }
+.as-preview { color: var(--muted); font-size: .88rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.as-body { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; margin-top: 12px; }
+.as-chat { display: grid; gap: 10px; }
+.as-log { display: grid; gap: 8px; max-height: 36vh; min-height: 120px; overflow-y: auto; padding: 4px 2px; align-content: start; }
+.as-msg { max-width: 92%; padding: 10px 12px; border-radius: 16px; line-height: 1.5; }
+.as-msg.user { justify-self: end; background: var(--brand); color: #fff; border-bottom-right-radius: 4px; }
+.as-msg.bot { justify-self: start; background: var(--surface-2); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+.as-msg.wait { opacity: .7; font-style: italic; }
+.as-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.as-meta { font-size: .74rem; color: var(--muted); margin-top: 4px; }
+.as-msg.user .as-meta { color: rgba(255, 255, 255, .8); }
+.as-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.as-chip { border: 1px solid var(--line-strong); background: var(--surface); color: var(--brand); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: .84rem; cursor: pointer; text-align: left; }
+.as-compose { display: flex; gap: 8px; align-items: flex-end; }
+.as-input { flex: 1; min-width: 0; resize: none; border-radius: 14px; padding: 10px 12px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font: inherit; line-height: 1.4; }
+.as-send { min-width: 48px; height: 44px; padding: 0 12px; flex: none; }
+.st-bell { position: relative; border: 0; background: none; color: var(--brand); padding: 4px; cursor: pointer; display: grid; place-items: center; }
+.st-bell .st-badge { top: -3px; left: 55%; }
+
+/* ---------- Cai ra Man hinh chinh (iPhone) ---------- */
+.st-install { display: grid; gap: 6px; background: var(--accent-soft); }
+.st-install .btn { justify-self: start; }
+
+.st-prod.sold-out { opacity: .45; filter: grayscale(.6); cursor: not-allowed; }
+.st-frame-items { margin: 4px 0 0; padding-left: 18px; display: grid; gap: 2px; }
+.st-main select, .st-select { min-height: 44px; padding: 8px 12px; font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--line-strong); border-radius: 12px; }
+.st-kpi.hero.loss { background: linear-gradient(135deg, #a8322a, #5e1612); }
+.st-kpi.hero strong { color: #fff; font-size: 1.5rem; }
+.st-main > h2 + .st-empty, .st-main .st-empty { width: 100%; box-sizing: border-box; }
+.st-grid > .st-empty, .st-grid > .st-spinner { grid-column: 1 / -1; }
+.st-toolbar h2 { margin-top: 18px; }
+.as-note { grid-template-columns: auto 1fr; align-items: start; gap: 10px; border-left-width: 7px; }
+.as-note-main { display: grid; gap: 5px; min-width: 0; }
+.as-note.unread.sev-BAD { background: color-mix(in srgb, var(--bad) 14%, var(--surface)); }
+.as-note.unread.sev-WARN { background: color-mix(in srgb, var(--warn) 14%, var(--surface)); }
+.as-note.read { opacity: .62; }
+.as-note.unread strong::before { content: none; }
+.as-ico { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 1.1rem; color: #fff; background: var(--line-strong); }
+.as-ico.sev-BAD { background: #C0392B; }
+.as-ico.sev-WARN { background: #B7791F; }
+.as-title { font-size: 1.05rem; line-height: 1.35; }
+.as-kind { font-size: .78rem; color: var(--muted); }
+.as-todo { display: block; padding: 7px 10px; border-radius: 10px; background: color-mix(in srgb, var(--surface) 70%, transparent); border: 1px solid var(--line); font-weight: 700; font-size: .9rem; }
+.as-sum { display: flex; gap: 8px; flex-wrap: wrap; }
+.al-chip { padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); font-weight: 700; font-size: .85rem; }
+.al-chip.bad { background: #C0392B; border-color: #C0392B; color: #fff; }
+.al-chip.warn { background: #B7791F; border-color: #B7791F; color: #fff; }
+.as-group { margin: 10px 0 0; font-size: .95rem; color: var(--muted); }
+.st-alertbar { display: block; width: calc(100% - 24px); margin: 8px 12px 0; padding: 10px 14px; border: 0; border-radius: 12px; font: inherit; font-weight: 800; text-align: left; color: #fff; background: #B7791F; cursor: pointer; box-shadow: 0 6px 16px rgba(0,0,0,.18); }
+.st-alertbar.bad { background: #C0392B; }
+.fc-bars { display: grid; grid-template-columns: repeat(7, 1fr); align-items: end; gap: 6px; padding: 10px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); }
+.fc-col { display: grid; justify-items: center; gap: 4px; }
+.fc-bar { width: 70%; max-width: 34px; border-radius: 8px 8px 3px 3px; background: color-mix(in srgb, var(--accent) 55%, var(--surface)); }
+.fc-bar.today { background: var(--accent); }
+.fc-val { font-size: .78rem; font-weight: 700; }
+.fc-day { font-size: .75rem; color: var(--muted); }
+div.as-note { cursor: default; }
+.fc-day.special { color: var(--warn); font-weight: 800; }
+/* Hop thu 3 cot (dien thoai: 3 tab co so dem do / cam) */
+.as-gtabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.as-gtab { display: grid; gap: 4px; justify-items: center; padding: 8px 4px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--text); font: inherit; cursor: pointer; }
+.as-gtab.on { border-color: var(--brand, #e0a96d); box-shadow: inset 0 -3px 0 var(--brand, #e0a96d); font-weight: 700; }
+.as-gtab-name { font-size: .82rem; text-align: center; line-height: 1.2; }
+.as-gtab-count { display: flex; gap: 4px; min-height: 20px; align-items: center; }
+.as-gtab-count b { min-width: 20px; padding: 0 6px; border-radius: 999px; color: #fff; font-size: .78rem; line-height: 20px; text-align: center; }
+.as-gtab-count b.bad { background: var(--bad); }
+.as-gtab-count b.warn { background: var(--warn); }
+.as-gtab-count i { color: var(--ok); font-style: normal; }
+@media (min-width: 900px) { .as-gtab-name { font-size: .95rem; } }
+.brief-mark { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.brief-special { font-weight: 700; color: var(--warn); }
+.as-note-wrap { display: grid; gap: 0; }
+.as-note-wrap > .as-note { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.as-fb { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 14px; border: 1px solid var(--line); border-top: 0; border-radius: 0 0 14px 14px; background: var(--surface); }
+.as-body + .as-fb { margin-top: 12px; border-top: 1px solid var(--line); border-radius: 14px; }
+.as-fb-q { flex: 1 1 160px; font-size: .85rem; color: var(--muted); }
+.as-group-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; }
+.as-group-row .as-group { margin: 0; }
+.st-card.ev-disputed { opacity: .7; border-style: dashed; }
+.ev-disclaimer { padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--warn) 12%, var(--surface)); }
+.mod-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; cursor: pointer; }
+.mod-row.off { opacity: .65; }
+.mod-text p { margin: 2px 0 0; }
+.mod-switch { position: relative; width: 52px; height: 30px; flex: none; }
+.mod-switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; z-index: 1; }
+.mod-knob { position: absolute; inset: 0; border-radius: 999px; background: var(--line-strong); transition: background .15s; }
+.mod-knob::after { content: ''; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+.mod-switch input:checked + .mod-knob { background: #2E7D4F; }
+.mod-switch input:checked + .mod-knob::after { transform: translateX(22px); }
+.pay-extras { display: grid; gap: 8px; margin: 10px 0; }
+.pay-extras .kv-row { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+.ok-text { color: var(--ok); font-weight: 700; }
+.st-seg.wrap { flex-wrap: wrap; }
+.st-seg.wrap .st-seg-btn { flex: 1 1 45%; }
+.rc-line { display: grid; gap: 8px; }
+.rc-row { display: flex; gap: 8px; }
+.rc-row input { flex: 1; min-width: 0; }
+.hb { display: grid; gap: 10px; }
+.hb-row { display: grid; grid-template-columns: minmax(80px, 34%) 1fr auto; align-items: center; gap: 8px; font-size: .9rem; }
+.hb-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.hb-track { height: 10px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.hb-fill { display: block; height: 100%; border-radius: 999px; background: var(--accent); }
+.hb-val { color: var(--muted); font-size: .8rem; white-space: nowrap; }
+.fc-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.fc-cell { display: grid; justify-items: center; gap: 2px; padding: 8px 2px; border-radius: 10px; background: var(--line); font-size: .78rem; }
+.fc-cell strong { font-size: .72rem; }
+.fc-busy { background: #F6C9A0; color: #3B2219; }
+.fc-slow { background: #DCE7F2; color: #3B2219; }
+.fc-normal { background: #E3EFE2; color: #3B2219; }
+.st-sheet-body select, .st-sheet-body input:not([type=checkbox]):not([type=radio]):not([type=file]) { width: 100%; box-sizing: border-box; min-height: 46px; padding: 8px 12px; font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--line-strong); border-radius: 12px; }
+.st-sheet-body select:focus, .st-sheet-body input:focus { border-color: var(--accent); outline: 3px solid color-mix(in srgb, var(--accent) 28%, transparent); }
+.rc-row input { width: auto; flex: 1; }
+.brief { display: grid; gap: 10px; padding: 14px; margin-bottom: 14px; border-radius: 18px; border: 2px solid var(--accent); background: var(--surface); }
+.brief-top { display: flex; justify-content: space-between; align-items: baseline; }
+.brief-headline { margin: 0; font-size: 1.05rem; font-weight: 700; line-height: 1.45; }
+.brief .as-note .btn { justify-self: start; margin-top: 4px; }
+.bad-text { color: var(--bad); font-weight: 600; }

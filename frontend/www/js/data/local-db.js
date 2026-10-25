@@ -11,8 +11,8 @@
  *
  * Dữ liệu lưu cục bộ:
  *   kv              : cặp khóa - giá trị (token đăng nhập, người dùng, địa chỉ máy chủ...)
- *   cart_items      : giỏ hàng (vẫn còn khi tắt app / mất mạng)
- *   cached_products : bản sao thực đơn để xem được khi mất mạng
+ *   cart_items      : phiếu gọi món đang chọn dở (vẫn còn khi tắt app / mất mạng)
+ *   cached_products : bản sao thực đơn để vẫn chọn món được khi mạng chập chờn
  */
 
 const DB_NAME = 'aicf_local';
@@ -24,11 +24,11 @@ const SCHEMA = `
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL              -- lưu dạng JSON
   );
-  -- Giỏ hàng: mỗi món 1 dòng, cộng dồn số lượng khi thêm lại cùng món
+  -- Phiếu gọi món nháp: mỗi món 1 dòng, cộng dồn số lượng khi chạm lại cùng món
   CREATE TABLE IF NOT EXISTS cart_items (
     product_id INTEGER PRIMARY KEY,  -- id món bên máy chủ
     name       TEXT    NOT NULL,     -- tên món (hiển thị khi mất mạng)
-    price      INTEGER NOT NULL,     -- giá lúc thêm vào giỏ (máy chủ sẽ tính lại khi đặt)
+    price      INTEGER NOT NULL,     -- giá lúc chọn (máy chủ tính lại khi gửi đơn)
     image_url  TEXT,
     quantity   INTEGER NOT NULL CHECK (quantity > 0),
     note       TEXT                  -- ghi chú: ít đá, không đường...

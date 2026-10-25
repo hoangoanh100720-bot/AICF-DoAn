@@ -1,136 +1,97 @@
 /**
- * MÀN HÌNH ĐĂNG NHẬP / ĐĂNG KÝ.
+ * MÀN HÌNH ĐĂNG NHẬP (giống màn đăng nhập app nhân viên AICF: logo, tên quán, ô tài khoản, nút lớn).
  *  - Đăng nhập bằng tên + mật khẩu  -> POST /api/auth/login
- *  - Đăng ký tài khoản khách          -> POST /api/auth/register
- *  - Đăng nhập Google (Firebase)      -> Firebase Auth -> POST /api/auth/firebase
- *  - Khách vãng lai được đưa tới đây khi bấm "Đặt món" / xem đơn / chat: tham số ?next=/cart cho biết
- *    đăng nhập xong phải quay lại đâu (giỏ hàng vẫn còn nguyên vì lưu trong máy).
+ *  - Đăng nhập Google (Firebase)    -> Firebase Auth -> POST /api/auth/firebase (chỉ tài khoản chủ quán đã cấp email)
  *  - App Android: nhập địa chỉ máy chủ, bấm "Kiểm tra" gọi GET /api/health
+ * Không có đăng ký: tài khoản do chủ quán / quản lý tạo ở màn Nhân viên.
  */
 import { IS_NATIVE } from '../config.js';
-import { h, mount } from '../core/dom.js';
+import { h } from '../core/dom.js';
 import { navigate } from '../core/router.js';
+import { appState } from '../core/store.js';
 import { authRepo, settingsRepo } from '../data/repositories.js';
 import { session } from '../data/session.js';
 import { canUseGoogleSignIn, googleSignIn } from '../firebase/firebase.js';
-import { field, iconButton, readForm, setHeader, showFieldErrors, toast, toastError } from '../ui/components.js';
-import { icons } from '../ui/icons.js';
+import { field, formSheet, toast } from '../ui/components.js';
+import { icon } from '../ui/icons.js';
 
-const LOGIN_FIELDS = [
-  { name: 'username', label: 'Tên đăng nhập', required: true, autocomplete: 'username' },
-  { name: 'password', label: 'Mật khẩu', type: 'password', required: true, autocomplete: 'current-password' },
-];
-
-const REGISTER_FIELDS = [
-  { name: 'fullName', label: 'Họ tên', required: true, autocomplete: 'name' },
-  { name: 'username', label: 'Tên đăng nhập', required: true, minLength: 3, autocomplete: 'username', hint: 'Chữ không dấu, số, dấu . _ -' },
-  { name: 'password', label: 'Mật khẩu', type: 'password', required: true, minLength: 6, autocomplete: 'new-password', hint: 'Ít nhất 6 ký tự' },
-  { name: 'email', label: 'Email', type: 'email', autocomplete: 'email' },
-  { name: 'phone', label: 'Số điện thoại', type: 'tel', autocomplete: 'tel' },
-];
+const DEMO = [['chu', 'chu123', 'Chủ quán'], ['quanly', 'quanly123', 'Quản lý'], ['nhanvien', 'nhanvien123', 'Nhân viên']];
 
 export function render(ctx) {
-  // Chỉ nhận đường dẫn nội bộ của app (bắt đầu bằng "/") để tránh bị chèn địa chỉ lạ
-  const next = (ctx.query.next || '').startsWith('/') ? ctx.query.next : null;
-  setHeader(next ? 'Đăng nhập' : 'Chào mừng',
-    iconButton(icons.back, 'Quay lại', () => navigate(next === '/cart' ? '/cart' : '/menu')));
-  let mode = 'login';
-  const formBox = h('div');
+  const shop = appState.get().shop;
+  const user = h('input', { id: 'username', name: 'username', autocomplete: 'username', autocapitalize: 'none', spellcheck: 'false' });
+  const pass = h('input', { id: 'password', name: 'password', type: 'password', autocomplete: 'current-password' });
+  const err = h('p', { class: 'form-error', role: 'alert' }, ctx.query.expired ? 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.' : '');
+  const btn = h('button', { class: 'btn btn-primary btn-lg btn-block', type: 'submit' }, 'Đăng nhập');
 
-  /**
-   * Đăng nhập xong: lưu phiên rồi quay lại màn khách đang làm dở (vd giỏ hàng để đặt món);
-   * nhân viên / quản trị luôn về trang chủ theo vai trò của mình.
-   */
   const finish = async (auth) => {
     await session.signIn(auth);
-    toast(`Xin chào, ${auth.user.fullName}!`, 'success');
-    navigate(auth.user.role === 'CUSTOMER' && next ? next : '/');
+    toast('Xin chào, ' + auth.user.fullName + '!', 'ok');
+    navigate('/');   // router đưa về màn đầu tiên theo vai trò
   };
 
-  // Lý do phải đăng nhập (khi khách bị chuyển tới từ màn khác)
-  const reason = !next ? null
-    : next === '/cart' ? 'Đăng nhập hoặc tạo tài khoản để đặt món. Giỏ hàng của bạn vẫn được giữ nguyên.'
-      : next === '/chat' ? 'Đăng nhập để trò chuyện với Trợ lý AI.'
-        : 'Bạn cần đăng nhập để xem mục này.';
-
-  const drawForm = () => {
-    const fields = mode === 'login' ? LOGIN_FIELDS : REGISTER_FIELDS;
-    const submit = h('button', { class: 'btn btn-block', type: 'submit' }, mode === 'login' ? 'Đăng nhập' : 'Tạo tài khoản');
-    const form = h('form', { class: 'stack', novalidate: true }, fields.map((f) => field(f)), submit);
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      if (!form.reportValidity()) return;
-      submit.disabled = true;
-      try {
-        const data = readForm(form, fields);
-        await finish(mode === 'login' ? await authRepo.login(data.username, data.password) : await authRepo.register(data));
-      } catch (err) {
-        if (!showFieldErrors(form, err)) toastError(err);
-      } finally {
-        submit.disabled = false;
-      }
-    });
-    mount(formBox, form);
-  };
-
-  const modeSwitch = h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'Chọn đăng nhập hoặc đăng ký' },
-    [['login', 'Đăng nhập'], ['register', 'Đăng ký']].map(([value, label]) =>
-      h('label', null,
-        h('input', { type: 'radio', name: 'mode', value, checked: value === mode, onchange: () => { mode = value; drawForm(); } }),
-        h('span', null, label))));
-  drawForm();
+  const form = h('form', { class: 'form', novalidate: true },
+    field('Tên đăng nhập', user), field('Mật khẩu', pass), err, btn);
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!user.value.trim() || !pass.value) { err.textContent = 'Vui lòng nhập tên đăng nhập và mật khẩu.'; return; }
+    err.textContent = '';
+    btn.disabled = true;
+    btn.textContent = 'Đang đăng nhập…';
+    try {
+      await finish(await authRepo.login(user.value.trim(), pass.value));
+    } catch (ex) {
+      err.textContent = ex.message;
+      btn.disabled = false;
+      btn.textContent = 'Đăng nhập';
+    }
+  });
 
   // Đăng nhập Google qua Firebase (chỉ hiện khi đã cấu hình Firebase và đang chạy trên trình duyệt)
-  const google = canUseGoogleSignIn()
-    ? [h('div', { class: 'divider' }, 'hoặc'),
-      h('button', {
-        class: 'btn btn-secondary btn-block', type: 'button',
-        onclick: async (e) => {
-          e.currentTarget.disabled = true;
-          try {
-            await finish(await authRepo.firebase(await googleSignIn()));
-          } catch (err) {
-            if (err?.code !== 'auth/popup-closed-by-user') toastError(err);
-          } finally {
-            e.target.closest('button').disabled = false;
-          }
-        },
-      }, h('span', { 'aria-hidden': 'true', style: { fontWeight: 800, color: 'var(--info)' } }, 'G'), 'Tiếp tục với Google')]
-    : null;
-
-  return h('div', { class: 'stack' },
-    h('div', { class: 'auth-hero' }, h('img', { src: 'img/hero-1.jpg', alt: 'Ly cà phê espresso đang được rót' })),
-    h('div', { class: 'card auth-card stack' },
-      h('div', null, h('h1', null, 'AICF Coffee'), h('p', { class: 'muted' }, 'Đặt món nhanh, theo dõi đơn và hỏi Trợ lý AI.')),
-      reason ? h('div', { class: 'banner banner-info', role: 'status' }, reason) : null,
-      modeSwitch, formBox, google),
-    next === '/cart'
-      ? h('a', { class: 'btn btn-ghost', href: '#/cart' }, '← Quay lại giỏ hàng')
-      : h('a', { class: 'btn btn-ghost', href: '#/menu' }, '← Xem thực đơn không cần đăng nhập'),
-    IS_NATIVE ? serverSettings() : null,
-    h('p', { class: 'muted small', style: { textAlign: 'center' } },
-      'Tài khoản thử: khach / khach123 · staff / staff123 · admin / admin123'));
-}
-
-/** App Android: chỉnh địa chỉ máy chủ (máy ảo: http://10.0.2.2:8090, điện thoại thật: IP máy tính trong cùng Wi-Fi). */
-function serverSettings() {
-  const input = h('input', { class: 'input', id: 'server-url', type: 'url', value: session.serverUrl(), inputmode: 'url' });
-  const check = h('button', {
-    class: 'btn btn-secondary', type: 'button',
-    onclick: async () => {
-      await session.setServerUrl(input.value);
+  const google = canUseGoogleSignIn() ? h('button', {
+    class: 'btn btn-ghost btn-lg btn-block', type: 'button',
+    onclick: async (e) => {
+      const b = e.currentTarget;
+      b.disabled = true;
       try {
-        await settingsRepo.health();
-        toast('Kết nối máy chủ thành công', 'success');
-      } catch (err) {
-        toastError(err);
+        await finish(await authRepo.firebase(await googleSignIn()));
+      } catch (ex) {
+        if (ex?.code !== 'auth/popup-closed-by-user') err.textContent = ex.message;
+      } finally {
+        b.disabled = false;
       }
     },
-  }, 'Kiểm tra');
-  return h('details', { class: 'card' },
-    h('summary', { style: { cursor: 'pointer', fontWeight: 600 } }, 'Địa chỉ máy chủ'),
-    h('div', { class: 'field', style: { marginTop: 'var(--space-3)' } },
-      h('label', { for: 'server-url' }, 'URL máy chủ'),
-      h('div', { class: 'row' }, input, check),
-      h('span', { class: 'hint' }, 'Máy ảo Android: http://10.0.2.2:8090 · Điện thoại thật: http://<IP máy tính>:8090')));
+  }, h('strong', { style: { color: '#4285f4' } }, 'G'), 'Đăng nhập bằng Google') : null;
+
+  // Bấm nhanh tài khoản mẫu (đồ án demo)
+  const demo = h('div', { class: 'st-chips', 'aria-label': 'Tài khoản mẫu' }, DEMO.map(([u, p, label]) =>
+    h('button', { class: 'st-chip', type: 'button', onclick: () => { user.value = u; pass.value = p; btn.focus(); } }, label)));
+
+  return h('div', { class: 'st-login' },
+    h('div', { class: 'st-login-brand' },
+      h('span', { class: 'logo' }, icon('coffee', 28)),
+      h('h1', null, shop?.name || 'AICF Coffee'),
+      h('p', null, 'App bán hàng cho chủ quán, quản lý và nhân viên')),
+    h('div', { class: 'card track-card' }, form, google ? h('div', { class: 'st-or' }, 'hoặc') : null, google),
+    h('div', { class: 'st-demo' }, h('p', { class: 'note' }, 'Tài khoản mẫu (bấm để điền):'), demo),
+    h('div', { class: 'st-login-links' },
+      IS_NATIVE ? h('button', { class: 'st-link', type: 'button', onclick: serverSheet }, 'Địa chỉ máy chủ') : null,
+      h('span', { class: 'note' }, 'Quên mật khẩu? Nhờ chủ quán cấp lại.')));
+}
+
+/** App Android: đổi địa chỉ máy chủ (máy ảo: http://10.0.2.2:8090, điện thoại thật: IP máy tính trong cùng Wi-Fi). */
+export function serverSheet() {
+  formSheet({
+    title: 'Địa chỉ máy chủ',
+    fields: [{ name: 'url', label: 'URL máy chủ', type: 'url', required: true,
+      hint: 'Máy ảo Android: http://10.0.2.2:8090 · Điện thoại thật: http://<IP máy tính>:8090' }],
+    initial: { url: session.serverUrl() },
+    submitText: 'Kiểm tra & lưu',
+    onSubmit: async ({ url }) => {
+      await session.setServerUrl(url);
+      await settingsRepo.health();
+      appState.set({ shop: await settingsRepo.shop().catch(() => null) });
+    },
+    success: 'Kết nối máy chủ thành công',
+  });
 }

@@ -15,11 +15,12 @@ import lombok.Getter;
 import lombok.Setter;
 import vn.aicf.mobile.common.BaseEntity;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Bảng ORDERS - đầu đơn hàng.
+ * Bảng ORDERS - đầu đơn hàng (bill của 1 bàn hoặc 1 đơn mang đi), do NHÂN VIÊN tạo khi khách gọi món.
  * Tên lớp là CustomerOrder (không phải "Order") vì ORDER là từ khóa của SQL/JPQL ("ORDER BY").
  */
 @Getter
@@ -32,10 +33,10 @@ public class CustomerOrder extends BaseEntity {
     @Column(nullable = false, unique = true)
     private String code;
 
-    /** Người đặt (NHIỀU đơn - MỘT người dùng). */
+    /** Nhân viên tạo đơn (NHIỀU đơn - MỘT nhân viên). */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    @JoinColumn(name = "created_by", nullable = false)
+    private User createdBy;
 
     /** Bàn (null nếu mang đi). */
     @ManyToOne(fetch = FetchType.LAZY)
@@ -48,18 +49,27 @@ public class CustomerOrder extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private OrderStatus status = OrderStatus.PENDING;
+    private OrderStatus status = OrderStatus.NEW;
 
     /** Tổng tiền (đồng) - tính lại mỗi khi danh sách món thay đổi, xem {@link #recalculateTotal()}. */
     @Column(name = "total_amount", nullable = false)
     private long totalAmount;
 
+    /** Cách khách trả tiền (null khi chưa thanh toán). */
     @Enumerated(EnumType.STRING)
-    @Column(name = "payment_method", nullable = false)
-    private PaymentMethod paymentMethod = PaymentMethod.CASH;
+    @Column(name = "payment_method")
+    private PaymentMethod paymentMethod;
 
     @Column(nullable = false)
     private boolean paid;
+
+    /** Lúc thu tiền - doanh thu tính theo ngày thu tiền. */
+    @Column(name = "paid_at")
+    private LocalDateTime paidAt;
+
+    /** Tiền mặt khách đưa (để tính tiền thối); null nếu chuyển khoản / đưa đủ. */
+    @Column(name = "amount_received")
+    private Long amountReceived;
 
     private String note;
 
@@ -69,7 +79,7 @@ public class CustomerOrder extends BaseEntity {
     /**
      * Quan hệ MỘT đơn - NHIỀU dòng món.
      * cascade ALL   : lưu / xóa đơn thì lưu / xóa luôn các dòng món.
-     * orphanRemoval : bỏ 1 dòng khỏi danh sách thì dòng đó bị xóa khỏi CSDL.
+     * orphanRemoval : bỏ 1 dòng khỏi danh sách thì dòng đó bị xóa khỏi CSDL (dùng khi bớt món gọi nhầm).
      */
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("id")
@@ -84,5 +94,10 @@ public class CustomerOrder extends BaseEntity {
     /** Tổng tiền = tổng (đơn giá x số lượng). Luôn tính ở backend, KHÔNG tin số tiền app gửi lên. */
     public void recalculateTotal() {
         totalAmount = items.stream().mapToLong(i -> i.getUnitPrice() * i.getQuantity()).sum();
+    }
+
+    /** Tổng số ly / phần trong đơn. */
+    public int itemCount() {
+        return items.stream().mapToInt(OrderItem::getQuantity).sum();
     }
 }

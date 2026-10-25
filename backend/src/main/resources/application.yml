@@ -16,7 +16,7 @@ spring:
 
   # ---------------------------------------------------------------------------
   # CƠ SỞ DỮ LIỆU SQLITE
-  # Toàn bộ dữ liệu nằm trong 1 file: ${app.data-dir}/aicf-mobile.db
+  # Toàn bộ dữ liệu nằm trong 1 file: ${app.data-dir}/aicf-ban-hang.db
   # Có thể mở file này bằng "DB Browser for SQLite" để xem bảng khi báo cáo.
   # Tham số trên URL là PRAGMA của SQLite:
   #   foreign_keys=true   bật kiểm tra khóa ngoại (SQLite mặc định TẮT)
@@ -24,7 +24,7 @@ spring:
   #   busy_timeout=5000   có chương trình khác (vd. DB Browser) đang ghi thì chờ tối đa 5 giây thay vì báo lỗi ngay
   # ---------------------------------------------------------------------------
   datasource:
-    url: jdbc:sqlite:${app.data-dir}/aicf-mobile.db?foreign_keys=true&journal_mode=WAL&busy_timeout=5000
+    url: jdbc:sqlite:${app.data-dir}/aicf-ban-hang.db?foreign_keys=true&journal_mode=WAL&busy_timeout=5000
     driver-class-name: org.sqlite.JDBC
     hikari:
       # CHỈ 1 KẾT NỐI: SQLite chỉ cho 1 luồng ghi tại 1 thời điểm. Với nhiều kết nối, khi nhiều khách

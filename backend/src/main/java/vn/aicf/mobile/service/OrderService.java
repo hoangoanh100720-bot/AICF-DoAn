@@ -18,22 +18,32 @@ import vn.aicf.mobile.repository.UserRepository;
 import vn.aicf.mobile.web.dto.OrderDtos.CreateOrderRequest;
 import vn.aicf.mobile.web.dto.OrderDtos.ItemRequest;
 import vn.aicf.mobile.web.dto.OrderDtos.OrderResponse;
+import vn.aicf.mobile.web.dto.OrderDtos.PayRequest;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.UUID;
 
 /**
- * NGHIỆP VỤ ĐƠN HÀNG - phần "lõi" của đồ án.
+ * NGHIỆP VỤ ĐƠN HÀNG (bán hàng tại quán) - phần "lõi" của đồ án.
  *
- * <p>Các nguyên tắc chính:
+ * <p>Luồng làm việc trong quán:
+ * <ol>
+ *   <li>Nhân viên chạm vào bàn trống trên sơ đồ bàn -> chọn món -> {@link #create} (bill ở trạng thái NEW).</li>
+ *   <li>Khách gọi thêm -> {@link #addItems}; gọi nhầm -> {@link #removeItem} (chỉ khi món chưa pha).</li>
+ *   <li>Pha chế bấm Bắt đầu / Xong, phục vụ bấm Đã mang ra -> {@link #updateStatus}.</li>
+ *   <li>Thu tiền -> {@link #pay}. Đã phục vụ + đã thu tiền = HOÀN TẤT, bàn trống trở lại.</li>
+ * </ol>
+ *
+ * <p>Nguyên tắc:
  * <ul>
- *   <li>Giá lấy từ CSDL tại thời điểm đặt, tổng tiền do backend tính ({@link CustomerOrder#recalculateTotal()}).</li>
- *   <li>Chuyển trạng thái phải theo luật trong {@link OrderStatus#canMoveTo}.</li>
- *   <li>Khách chỉ xem / hủy đơn của chính mình; nhân viên xem và xử lý mọi đơn.</li>
- *   <li>Mỗi thay đổi quan trọng đều gửi thông báo (trong app + FCM) qua {@link NotificationService}.</li>
+ *   <li>Giá lấy từ CSDL tại thời điểm gọi món, tổng tiền do backend tính ({@link CustomerOrder#recalculateTotal()}).</li>
+ *   <li>Chuyển trạng thái theo luật trong {@link OrderStatus#canMoveTo}; mỗi bàn chỉ có 1 bill đang mở.</li>
+ *   <li>Nhân viên chỉ hủy được đơn chưa pha; quản lý / chủ quán hủy được mọi đơn chưa thu tiền.</li>
+ *   <li>Mỗi thay đổi quan trọng gửi thông báo (trong app + FCM) qua {@link NotificationService}.</li>
  * </ul>
  */
 @Service
@@ -41,9 +51,9 @@ public class OrderService {
 
     private static final DateTimeFormatter CODE_DATE = DateTimeFormatter.ofPattern("yyyyMMdd");
 
-    /** Các trạng thái "đang xử lý" hiển thị trên màn hình nhân viên. */
-    public static final EnumSet<OrderStatus> ACTIVE =
-            EnumSet.of(OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.PREPARING, OrderStatus.READY);
+    /** Các trạng thái "đang mở" (bill chưa đóng): hiện trên sơ đồ bàn và màn pha chế. */
+    public static final EnumSet<OrderStatus> OPEN =
+            EnumSet.of(OrderStatus.NEW, OrderStatus.PREPARING, OrderStatus.READY, OrderStatus.SERVED);
 
     private final OrderRepository orders;
     private final ProductRepository products;
@@ -60,158 +70,200 @@ public class OrderService {
         this.notifications = notifications;
     }
 
-    // ============================== KHÁCH HÀNG ==============================
-
     /**
-     * Đặt đơn mới. Toàn bộ chạy trong 1 giao dịch: lỗi ở bất kỳ món nào thì không lưu gì cả (tính nguyên tử).
+     * Mở bill mới. Toàn bộ chạy trong 1 giao dịch: lỗi ở bất kỳ món nào thì không lưu gì cả (tính nguyên tử).
      */
     @Transactional
     public OrderResponse create(AuthUser me, CreateOrderRequest r) {
         CustomerOrder o = new CustomerOrder();
-        o.setUser(users.getReferenceById(me.id()));
+        o.setCreatedBy(users.getReferenceById(me.id()));
         o.setOrderType(r.orderType());
-        o.setPaymentMethod(r.paymentMethod() == null ? PaymentMethod.CASH : r.paymentMethod());
         o.setNote(blankToNull(r.note()));
 
-        // Đơn tại chỗ phải chọn bàn đang hoạt động; đơn mang đi thì bỏ qua bàn
+        // Đơn tại bàn phải chọn bàn đang dùng và bàn đó chưa có bill mở
         if (r.orderType() == OrderType.DINE_IN) {
             if (r.tableId() == null) {
-                throw ApiException.badRequest("Đơn tại chỗ cần chọn bàn");
+                throw ApiException.badRequest("Đơn tại bàn cần chọn bàn");
             }
             DiningTable t = tables.findById(r.tableId())
                     .filter(DiningTable::isActive)
                     .orElseThrow(() -> ApiException.badRequest("Bàn đã chọn không tồn tại hoặc đang tạm ngưng"));
+            if (orders.existsByTableIdAndStatusIn(t.getId(), OPEN)) {
+                throw ApiException.conflict(t.getName() + " đang có bill, hãy thêm món vào bill đó");
+            }
             o.setTable(t);
         }
-
         for (ItemRequest ir : r.items()) {
-            Product p = products.findById(ir.productId())
-                    .orElseThrow(() -> ApiException.badRequest("Món #" + ir.productId() + " không còn trong thực đơn"));
-            if (!p.isAvailable()) {
-                throw ApiException.conflict("Món \"" + p.getName() + "\" đang tạm hết, vui lòng bỏ khỏi giỏ hàng");
-            }
-            OrderItem item = new OrderItem();
-            item.setProduct(p);
-            item.setProductName(p.getName());   // chụp lại tên + giá tại thời điểm đặt
-            item.setUnitPrice(p.getPrice());
-            item.setQuantity(ir.quantity());
-            item.setNote(blankToNull(ir.note()));
-            o.addItem(item);
+            o.addItem(newItem(ir));
         }
         o.recalculateTotal();
 
-        // Mã đơn dựa trên id (luôn duy nhất, không bị trùng khi 2 người đặt cùng lúc):
+        // Mã đơn dựa trên id (luôn duy nhất, không bị trùng khi 2 người tạo cùng lúc):
         // lưu trước với mã tạm để SQLite cấp id, sau đó đổi thành mã đẹp DH<ngày>-<id>.
         o.setCode("TMP-" + UUID.randomUUID());
         orders.saveAndFlush(o);
         o.setCode("DH" + LocalDate.now().format(CODE_DATE) + "-" + String.format("%04d", o.getId()));
 
-        notifications.notifyStaff("Đơn mới " + o.getCode(),
-                me.fullName() + " vừa đặt " + o.getItems().size() + " món, tổng " + money(o.getTotalAmount())
-                        + (o.getTable() != null ? " - " + o.getTable().getName() : " - mang đi"),
-                o.getId());
+        notifications.notifyTeam(me.id(), "Đơn mới · " + where(o),
+                o.itemCount() + " món: " + itemsText(o.getItems()), o.getId());
         return OrderResponse.of(o);
     }
 
-    /** Đơn của tôi (mới nhất trước). */
     @Transactional(readOnly = true)
-    public List<OrderResponse> myOrders(AuthUser me) {
-        return orders.findByUserIdOrderByIdDesc(me.id()).stream().map(OrderResponse::of).toList();
+    public OrderResponse get(Long id) {
+        return OrderResponse.of(find(id));
     }
 
-    /** Xem 1 đơn: khách chỉ xem được đơn của mình, nhân viên xem được mọi đơn. */
+    /** Bill đang mở (chưa hoàn tất / chưa hủy), gọi trước đứng trước. */
     @Transactional(readOnly = true)
-    public OrderResponse get(AuthUser me, Long id) {
-        return OrderResponse.of(findVisible(me, id));
+    public List<OrderResponse> openOrders() {
+        return orders.findByStatusInOrderByIdAsc(OPEN).stream().map(OrderResponse::of).toList();
     }
 
-    /** Khách tự hủy: chỉ khi quán CHƯA xác nhận đơn. */
-    @Transactional
-    public OrderResponse cancelByCustomer(AuthUser me, Long id, String reason) {
-        CustomerOrder o = findVisible(me, id);
-        if (!o.getUser().getId().equals(me.id())) {
-            throw ApiException.forbidden("Bạn chỉ hủy được đơn của chính mình");
-        }
-        if (o.getStatus() != OrderStatus.PENDING) {
-            throw ApiException.conflict("Quán đã nhận đơn, vui lòng liên hệ nhân viên để hủy");
-        }
-        o.setStatus(OrderStatus.CANCELLED);
-        o.setCancelReason(reason == null || reason.isBlank() ? "Khách tự hủy" : reason.trim());
-        notifications.notifyStaff("Đơn " + o.getCode() + " đã bị khách hủy", o.getCancelReason(), o.getId());
-        return OrderResponse.of(o);
-    }
-
-    // ============================== NHÂN VIÊN ==============================
-
-    /** Đơn đang xử lý (chưa hoàn thành / chưa hủy), đơn đến trước đứng trước. */
-    @Transactional(readOnly = true)
-    public List<OrderResponse> activeOrders() {
-        return orders.findByStatusInOrderByIdAsc(ACTIVE).stream().map(OrderResponse::of).toList();
-    }
-
-    /** Mọi đơn trong 1 ngày (lịch sử). */
+    /** Mọi đơn tạo trong 1 ngày (lịch sử). */
     @Transactional(readOnly = true)
     public List<OrderResponse> ordersOfDay(LocalDate day) {
         return orders.findByCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByIdDesc(day.atStartOfDay(), day.plusDays(1).atStartOfDay())
                 .stream().map(OrderResponse::of).toList();
     }
 
-    /** Đổi trạng thái theo đúng luật; báo cho khách biết. Hoàn thành thì tự đánh dấu đã thanh toán. */
+    /**
+     * Khách gọi thêm món vào bill đang mở. Nếu đồ của bill đã pha xong (READY / SERVED) thì bill quay về
+     * "Chờ pha" để quầy pha chế thấy có món mới.
+     */
     @Transactional
-    public OrderResponse updateStatus(Long id, OrderStatus target, String cancelReason) {
+    public OrderResponse addItems(AuthUser me, Long id, List<ItemRequest> items) {
         CustomerOrder o = find(id);
-        OrderStatus current = o.getStatus();
-        if (!current.canMoveTo(target)) {
-            throw ApiException.conflict("Không thể chuyển đơn từ \"" + current.label() + "\" sang \"" + target.label() + "\"");
+        requireOpen(o);
+        if (o.isPaid()) {
+            throw ApiException.conflict("Đơn đã thu tiền, hãy mở bill mới cho món gọi thêm");
         }
-        o.setStatus(target);
-        if (target == OrderStatus.CANCELLED) {
-            o.setCancelReason(cancelReason == null || cancelReason.isBlank() ? "Quán hủy đơn" : cancelReason.trim());
+        for (ItemRequest ir : items) {
+            o.addItem(newItem(ir));
         }
-        if (target == OrderStatus.COMPLETED) {
-            o.setPaid(true);
+        o.recalculateTotal();
+        if (o.getStatus() == OrderStatus.READY || o.getStatus() == OrderStatus.SERVED) {
+            o.setStatus(OrderStatus.NEW);
         }
-        notifications.notifyUsers(List.of(o.getUser().getId()),
-                "Đơn " + o.getCode() + ": " + target.label(), customerMessage(o), o.getId());
+        int size = o.getItems().size();   // các món vừa thêm nằm cuối danh sách
+        notifications.notifyTeam(me.id(), "Gọi thêm · " + where(o), itemsText(o.getItems().subList(size - items.size(), size)), o.getId());
         return OrderResponse.of(o);
     }
 
-    /** Ghi nhận đã thanh toán (vd. khách chuyển khoản trước khi lấy đồ). */
+    /** Bớt 1 dòng món gọi nhầm: chỉ khi bill còn "Chờ pha" và chưa thu tiền; bill phải còn ít nhất 1 món. */
     @Transactional
-    public OrderResponse markPaid(Long id) {
-        CustomerOrder o = find(id);
-        if (o.getStatus() == OrderStatus.CANCELLED) {
-            throw ApiException.conflict("Đơn đã hủy, không thể ghi nhận thanh toán");
+    public OrderResponse removeItem(Long orderId, Long itemId) {
+        CustomerOrder o = find(orderId);
+        if (o.getStatus() != OrderStatus.NEW || o.isPaid()) {
+            throw ApiException.conflict("Chỉ bớt được món khi đơn còn \"Chờ pha\" và chưa thu tiền");
         }
+        OrderItem item = o.getItems().stream().filter(i -> i.getId().equals(itemId)).findFirst()
+                .orElseThrow(() -> ApiException.notFound("Đơn không có món #" + itemId));
+        if (o.getItems().size() == 1) {
+            throw ApiException.conflict("Đơn chỉ còn 1 món - hãy hủy đơn thay vì bớt món");
+        }
+        o.getItems().remove(item);   // orphanRemoval: dòng món bị xóa khỏi CSDL
+        o.recalculateTotal();
+        return OrderResponse.of(o);
+    }
+
+    /** Đổi trạng thái theo đúng luật. Hủy đơn: nhân viên chỉ khi đơn chưa pha, quản lý thì mọi đơn chưa thu tiền. */
+    @Transactional
+    public OrderResponse updateStatus(AuthUser me, Long id, OrderStatus target, String cancelReason) {
+        CustomerOrder o = find(id);
+        OrderStatus current = o.getStatus();
+        if (target == OrderStatus.COMPLETED) {
+            throw ApiException.badRequest("Đơn tự hoàn tất khi đã phục vụ và đã thanh toán (POST /api/orders/{id}/pay)");
+        }
+        if (!current.canMoveTo(target)) {
+            throw ApiException.conflict("Không thể chuyển đơn từ \"" + current.label() + "\" sang \"" + target.label() + "\"");
+        }
+        if (target == OrderStatus.CANCELLED) {
+            if (o.isPaid()) {
+                throw ApiException.conflict("Đơn đã thu tiền, không hủy được");
+            }
+            if (!me.isManager() && current != OrderStatus.NEW) {
+                throw ApiException.forbidden("Đồ đã pha, chỉ quản lý hoặc chủ quán được hủy đơn này");
+            }
+            o.setCancelReason(cancelReason == null || cancelReason.isBlank() ? "Hủy bởi " + me.fullName() : cancelReason.trim());
+        }
+        o.setStatus(target);
+        completeIfDone(o);
+
+        if (target == OrderStatus.READY && !o.getCreatedBy().getId().equals(me.id())) {
+            notifications.notifyUsers(List.of(o.getCreatedBy().getId()), where(o) + " đã xong",
+                    "Mang ra cho khách: " + itemsText(o.getItems()), o.getId());
+        } else if (target == OrderStatus.CANCELLED) {
+            notifications.notifyManagers(me.id(), "Đơn " + o.getCode() + " đã hủy",
+                    where(o) + " · " + o.getCancelReason() + " (" + me.fullName() + ")", o.getId());
+        }
+        return OrderResponse.of(o);
+    }
+
+    /**
+     * Thu tiền. Tiền mặt có thể nhập tiền khách đưa để app hiện tiền thối (phải >= tổng bill).
+     * Bill đã phục vụ thì hoàn tất luôn; chưa phục vụ (vd. đơn mang đi trả trước) thì vẫn mở tới khi giao đồ.
+     */
+    @Transactional
+    public OrderResponse pay(Long id, PayRequest r) {
+        CustomerOrder o = find(id);
+        requireOpen(o);
+        if (o.isPaid()) {
+            throw ApiException.conflict("Đơn " + o.getCode() + " đã thu tiền rồi");
+        }
+        Long received = r.amountReceived();
+        if (received != null && r.paymentMethod() == PaymentMethod.CASH && received < o.getTotalAmount()) {
+            throw ApiException.badRequest("Tiền khách đưa chưa đủ (thiếu " + money(o.getTotalAmount() - received) + ")");
+        }
+        o.setPaymentMethod(r.paymentMethod());
+        o.setAmountReceived(r.paymentMethod() == PaymentMethod.CASH ? received : null);
         o.setPaid(true);
+        o.setPaidAt(LocalDateTime.now());
+        completeIfDone(o);
         return OrderResponse.of(o);
     }
 
     // ============================== Hàm phụ ==============================
 
+    /** Đã phục vụ + đã thu tiền -> hoàn tất (bàn trống trở lại). */
+    private static void completeIfDone(CustomerOrder o) {
+        if (o.isPaid() && o.getStatus() == OrderStatus.SERVED) {
+            o.setStatus(OrderStatus.COMPLETED);
+        }
+    }
+
+    private OrderItem newItem(ItemRequest ir) {
+        Product p = products.findById(ir.productId())
+                .orElseThrow(() -> ApiException.badRequest("Món #" + ir.productId() + " không còn trong thực đơn"));
+        if (!p.isAvailable()) {
+            throw ApiException.conflict("Món \"" + p.getName() + "\" đang tạm hết");
+        }
+        OrderItem item = new OrderItem();
+        item.setProduct(p);
+        item.setProductName(p.getName());   // chụp lại tên + giá tại thời điểm gọi món
+        item.setUnitPrice(p.getPrice());
+        item.setQuantity(ir.quantity());
+        item.setNote(blankToNull(ir.note()));
+        return item;
+    }
+
+    private static void requireOpen(CustomerOrder o) {
+        if (o.getStatus().isFinal()) {
+            throw ApiException.conflict("Đơn " + o.getCode() + " đã " + o.getStatus().label().toLowerCase());
+        }
+    }
+
     private CustomerOrder find(Long id) {
         return orders.findById(id).orElseThrow(() -> ApiException.notFound("Không tìm thấy đơn #" + id));
     }
 
-    /** Tìm đơn và kiểm tra quyền xem. Trả 404 (không phải 403) để không tiết lộ đơn của người khác có tồn tại. */
-    private CustomerOrder findVisible(AuthUser me, Long id) {
-        CustomerOrder o = find(id);
-        if (!me.isStaff() && !o.getUser().getId().equals(me.id())) {
-            throw ApiException.notFound("Không tìm thấy đơn #" + id);
-        }
-        return o;
+    /** "Bàn 02" hoặc "Mang đi DH...-0007". */
+    private static String where(CustomerOrder o) {
+        return o.getTable() != null ? o.getTable().getName() : "Mang đi " + o.getCode();
     }
 
-    private static String customerMessage(CustomerOrder o) {
-        return switch (o.getStatus()) {
-            case CONFIRMED -> "Quán đã nhận đơn của bạn.";
-            case PREPARING -> "Đồ uống của bạn đang được pha chế.";
-            case READY -> o.getTable() != null ? "Đồ uống đã xong, nhân viên sẽ mang ra " + o.getTable().getName() + "."
-                    : "Đồ uống đã xong, mời bạn tới quầy nhận.";
-            case COMPLETED -> "Cảm ơn bạn! Hẹn gặp lại.";
-            case CANCELLED -> "Đơn đã bị hủy: " + o.getCancelReason();
-            default -> "Trạng thái đơn đã thay đổi.";
-        };
+    private static String itemsText(List<OrderItem> items) {
+        return String.join(", ", items.stream().map(i -> i.getQuantity() + " " + i.getProductName()).toList());
     }
 
     static String money(long amount) {

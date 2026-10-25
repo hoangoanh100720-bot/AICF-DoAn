@@ -17,7 +17,7 @@
 --
 -- Sơ đồ quan hệ (ERD rút gọn):
 --
---   users 1───n orders n───1 dining_tables
+--   users 1───n orders n───1 dining_tables      (users = nhân viên tạo đơn: orders.created_by)
 --     │            │
 --     │            1
 --     │            │
@@ -33,19 +33,20 @@
 
 
 -- -----------------------------------------------------------------------------
--- 1. USERS - Tài khoản người dùng (khách hàng, nhân viên, quản trị)
+-- 1. USERS - Tài khoản người dùng của quán (chủ quán, quản lý, nhân viên bán hàng).
+--    Không có tài khoản khách: tài khoản do chủ quán / quản lý tạo trong app.
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS users (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    username      TEXT    NOT NULL UNIQUE,              -- tên đăng nhập (với tài khoản Google: lấy theo email)
+    username      TEXT    NOT NULL UNIQUE,              -- tên đăng nhập
     password_hash TEXT,                                 -- mật khẩu đã băm BCrypt; NULL nếu chỉ đăng nhập bằng Google
     full_name     TEXT    NOT NULL,                     -- họ tên hiển thị
-    email         TEXT    UNIQUE,                       -- email (có thể trống với tài khoản tạo tay)
+    email         TEXT    UNIQUE,                       -- email; trùng email tài khoản Google thì đăng nhập Google được
     phone         TEXT,                                 -- số điện thoại liên hệ
     avatar_url    TEXT,                                 -- ảnh đại diện (Google trả về khi đăng nhập Firebase)
-    role          TEXT    NOT NULL DEFAULT 'CUSTOMER'
-                  CHECK (role IN ('ADMIN', 'STAFF', 'CUSTOMER')),
-                                                        -- ADMIN: toàn quyền; STAFF: xử lý đơn; CUSTOMER: đặt món
+    role          TEXT    NOT NULL DEFAULT 'STAFF'
+                  CHECK (role IN ('OWNER', 'MANAGER', 'STAFF')),
+                                                        -- OWNER: chủ quán; MANAGER: quản lý; STAFF: nhân viên bán hàng
     firebase_uid  TEXT    UNIQUE,                       -- mã người dùng bên Firebase Authentication (đăng nhập Google)
     active        INTEGER NOT NULL DEFAULT 1,           -- 0 = bị khóa, không đăng nhập được
     created_at    TEXT    NOT NULL DEFAULT (datetime('now', 'localtime')),
@@ -88,7 +89,7 @@ CREATE INDEX IF NOT EXISTS idx_products_category ON products (category_id);
 
 
 -- -----------------------------------------------------------------------------
--- 4. DINING_TABLES - Bàn trong quán (khách quét QR / chọn bàn khi đặt tại chỗ)
+-- 4. DINING_TABLES - Bàn trong quán (sơ đồ bàn trên app: bàn trống / đang có khách)
 --    Tên bảng không dùng "tables" vì dễ nhầm với từ khóa / khái niệm "bảng" của CSDL.
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS dining_tables (
@@ -103,35 +104,40 @@ CREATE TABLE IF NOT EXISTS dining_tables (
 
 
 -- -----------------------------------------------------------------------------
--- 5. ORDERS - Đơn hàng (phần đầu đơn). Chi tiết từng món nằm ở order_items.
+-- 5. ORDERS - Đơn hàng = "bill" của 1 bàn hoặc 1 đơn mang đi, do NHÂN VIÊN tạo khi khách gọi món.
+--    Chi tiết từng món nằm ở order_items.
 --    Vòng đời trạng thái:
---      PENDING (chờ xác nhận) -> CONFIRMED (đã nhận) -> PREPARING (đang pha)
---      -> READY (xong, chờ lấy) -> COMPLETED (đã giao + thanh toán)
---      Bất kỳ lúc nào trước COMPLETED đều có thể -> CANCELLED (hủy)
+--      NEW (chờ pha) -> PREPARING (đang pha) -> READY (xong, chờ mang ra) -> SERVED (đã phục vụ)
+--      Đã phục vụ + đã thanh toán -> COMPLETED (hoàn tất, bàn trống trở lại)
+--      Chưa thanh toán thì có thể -> CANCELLED (hủy)
+--    Mỗi bàn chỉ có tối đa 1 đơn đang mở (chưa COMPLETED / CANCELLED): kiểm tra ở OrderService.
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS orders (
-    id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    code           TEXT    NOT NULL UNIQUE,             -- mã đơn cho người đọc, ví dụ 'DH20261015-0007'
-    user_id        INTEGER NOT NULL
-                   REFERENCES users (id) ON DELETE RESTRICT,   -- người đặt
-    table_id       INTEGER
-                   REFERENCES dining_tables (id) ON DELETE SET NULL, -- bàn (NULL nếu mang đi)
-    order_type     TEXT    NOT NULL DEFAULT 'TAKEAWAY'
-                   CHECK (order_type IN ('DINE_IN', 'TAKEAWAY')), -- tại chỗ / mang đi
-    status         TEXT    NOT NULL DEFAULT 'PENDING'
-                   CHECK (status IN ('PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'COMPLETED', 'CANCELLED')),
-    total_amount   INTEGER NOT NULL DEFAULT 0 CHECK (total_amount >= 0), -- tổng tiền = tổng (đơn giá x số lượng) các món
-    payment_method TEXT    NOT NULL DEFAULT 'CASH'
-                   CHECK (payment_method IN ('CASH', 'BANK_TRANSFER', 'E_WALLET')),
-    paid           INTEGER NOT NULL DEFAULT 0,          -- 1 = đã thanh toán
-    note           TEXT,                                -- ghi chú của khách cho cả đơn
-    cancel_reason  TEXT,                                -- lý do hủy (nếu có)
-    created_at     TEXT    NOT NULL DEFAULT (datetime('now', 'localtime')),
-    updated_at     TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    code            TEXT    NOT NULL UNIQUE,            -- mã đơn cho người đọc, ví dụ 'DH20261015-0007'
+    created_by      INTEGER NOT NULL
+                    REFERENCES users (id) ON DELETE RESTRICT,   -- nhân viên tạo đơn
+    table_id        INTEGER
+                    REFERENCES dining_tables (id) ON DELETE SET NULL, -- bàn (NULL nếu mang đi)
+    order_type      TEXT    NOT NULL DEFAULT 'TAKEAWAY'
+                    CHECK (order_type IN ('DINE_IN', 'TAKEAWAY')), -- tại bàn / mang đi
+    status          TEXT    NOT NULL DEFAULT 'NEW'
+                    CHECK (status IN ('NEW', 'PREPARING', 'READY', 'SERVED', 'COMPLETED', 'CANCELLED')),
+    total_amount    INTEGER NOT NULL DEFAULT 0 CHECK (total_amount >= 0), -- tổng tiền = tổng (đơn giá x số lượng) các món
+    payment_method  TEXT
+                    CHECK (payment_method IN ('CASH', 'BANK_TRANSFER', 'E_WALLET')), -- NULL khi chưa thanh toán
+    paid            INTEGER NOT NULL DEFAULT 0,         -- 1 = đã thanh toán
+    paid_at         TEXT,                               -- lúc thu tiền (doanh thu tính theo ngày thu tiền)
+    amount_received INTEGER CHECK (amount_received >= 0), -- tiền mặt khách đưa (tính tiền thối)
+    note            TEXT,                               -- ghi chú cho cả đơn (vd 'khách ngồi ngoài ban công')
+    cancel_reason   TEXT,                               -- lý do hủy (nếu có)
+    created_at      TEXT    NOT NULL DEFAULT (datetime('now', 'localtime')),
+    updated_at      TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
-CREATE INDEX IF NOT EXISTS idx_orders_user    ON orders (user_id);
+CREATE INDEX IF NOT EXISTS idx_orders_creator ON orders (created_by);
 CREATE INDEX IF NOT EXISTS idx_orders_status  ON orders (status);
-CREATE INDEX IF NOT EXISTS idx_orders_created ON orders (created_at);  -- thống kê doanh thu theo ngày
+CREATE INDEX IF NOT EXISTS idx_orders_created ON orders (created_at);  -- lịch sử đơn theo ngày
+CREATE INDEX IF NOT EXISTS idx_orders_paid    ON orders (paid_at);     -- thống kê doanh thu theo ngày
 
 
 -- -----------------------------------------------------------------------------
@@ -203,7 +209,7 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications (user_id, is_
 
 
 -- -----------------------------------------------------------------------------
--- 10. APP_SETTINGS - Cấu hình dạng khóa / giá trị, Admin đổi được ngay trên app
+-- 10. APP_SETTINGS - Cấu hình dạng khóa / giá trị, chủ quán đổi được ngay trên app
 --     Ví dụ: 'shop.name' = 'AICF Coffee', 'ai.provider' = 'gemini', 'ai.gemini_api_key' = '...'
 --     Khóa nào chưa có ở đây thì backend dùng giá trị mặc định trong application.yml.
 -- -----------------------------------------------------------------------------

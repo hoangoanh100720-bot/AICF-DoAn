@@ -7,18 +7,21 @@ import java.util.Set;
  * Trạng thái đơn hàng và luật chuyển trạng thái (máy trạng thái - state machine).
  *
  * <pre>
- *   PENDING ──> CONFIRMED ──> PREPARING ──> READY ──> COMPLETED
- *      │            │              │           │
- *      └────────────┴──────────────┴───────────┴──> CANCELLED
+ *   NEW ──> PREPARING ──> READY ──> SERVED ──(đã thanh toán)──> COMPLETED
+ *    │  └───────────────────^                     ^
+ *    └── (chưa thanh toán) có thể ──> CANCELLED    └── thanh toán trước rồi mới phục vụ cũng được
  * </pre>
- * Đặt luật ở MỘT chỗ giúp mọi nơi (API nhân viên, khách tự hủy, AI...) đều tuân theo cùng một quy tắc.
+ * Nhân viên gọi món -> đơn ở NEW (chờ pha). Pha chế bấm "Bắt đầu" (PREPARING), "Xong" (READY).
+ * Phục vụ mang ra bàn (SERVED). Đơn chỉ HOÀN TẤT (COMPLETED) khi đã phục vụ VÀ đã thanh toán:
+ * hệ thống tự chuyển, không ai chuyển tay sang COMPLETED.
+ * Đặt luật ở MỘT chỗ giúp mọi nơi (API, Trợ lý AI...) đều tuân theo cùng một quy tắc.
  */
 public enum OrderStatus {
-    PENDING("Chờ xác nhận"),
-    CONFIRMED("Đã xác nhận"),
-    PREPARING("Đang pha chế"),
-    READY("Đã xong, chờ lấy"),
-    COMPLETED("Hoàn thành"),
+    NEW("Chờ pha"),
+    PREPARING("Đang pha"),
+    READY("Đã xong, chờ mang ra"),
+    SERVED("Đã phục vụ"),
+    COMPLETED("Hoàn tất"),
     CANCELLED("Đã hủy");
 
     /** Tên tiếng Việt để hiển thị / gửi thông báo. */
@@ -32,12 +35,12 @@ public enum OrderStatus {
         return label;
     }
 
-    /** Từ mỗi trạng thái được phép đi tới những trạng thái nào. */
+    /** Từ mỗi trạng thái, nhân viên được bấm chuyển tới những trạng thái nào. */
     private static final Map<OrderStatus, Set<OrderStatus>> NEXT = Map.of(
-            PENDING, Set.of(CONFIRMED, CANCELLED),
-            CONFIRMED, Set.of(PREPARING, CANCELLED),
+            NEW, Set.of(PREPARING, READY, CANCELLED),
             PREPARING, Set.of(READY, CANCELLED),
-            READY, Set.of(COMPLETED, CANCELLED),
+            READY, Set.of(SERVED, CANCELLED),
+            SERVED, Set.of(CANCELLED),
             COMPLETED, Set.of(),
             CANCELLED, Set.of());
 
@@ -46,7 +49,7 @@ public enum OrderStatus {
         return NEXT.get(this).contains(target);
     }
 
-    /** Đơn đã kết thúc (không đổi được nữa). */
+    /** Đơn đã kết thúc (không đổi được nữa, bàn được giải phóng). */
     public boolean isFinal() {
         return this == COMPLETED || this == CANCELLED;
     }

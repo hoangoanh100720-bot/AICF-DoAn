@@ -14,12 +14,12 @@ public record AuthUser(Long id, String username, String fullName, Role role) {
         return new AuthUser(u.getId(), u.getUsername(), u.getFullName(), u.getRole());
     }
 
-    /** Nhân viên hoặc quản trị (được xử lý đơn hàng). */
-    public boolean isStaff() {
-        return role == Role.STAFF || role == Role.ADMIN;
+    /** Chủ quán hoặc quản lý (sửa thực đơn, xem doanh thu, hủy đơn bất kỳ...). */
+    public boolean isManager() {
+        return role.isManager();
     }
 
-    public boolean isAdmin() {
-        return role == Role.ADMIN;
+    public boolean isOwner() {
+        return role == Role.OWNER;
     }
 }

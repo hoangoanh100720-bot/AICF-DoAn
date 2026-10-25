@@ -12,10 +12,11 @@ public final class SettingsDtos {
     /**
      * GET /api/shop - thông tin công khai, app gọi lúc mở để biết tên quán và tính năng nào đang bật.
      *
+     * @param openNow         đang trong giờ mở cửa không (đọc từ hours); null nếu không đọc được giờ
      * @param firebaseEnabled backend đã cấu hình Firebase (bật nút đăng nhập Google, thông báo đẩy)
      * @param aiMode          "LLM" nếu có khóa API AI, ngược lại "OFFLINE"
      */
-    public record ShopInfo(String name, String address, String hours, boolean firebaseEnabled, String aiMode) {
+    public record ShopInfo(String name, String address, String hours, Boolean openNow, boolean firebaseEnabled, String aiMode) {
     }
 
     /** PUT /api/settings/shop */
@@ -23,7 +24,7 @@ public final class SettingsDtos {
     }
 
     /**
-     * PUT /api/settings/ai - Admin nhập khóa API ngay trên app.
+     * PUT /api/settings/ai - Chủ quán nhập khóa API ngay trên app.
      * Trường khóa để trống = giữ nguyên khóa cũ (app không bao giờ nhận lại khóa để tránh lộ).
      */
     public record AiSettingsRequest(

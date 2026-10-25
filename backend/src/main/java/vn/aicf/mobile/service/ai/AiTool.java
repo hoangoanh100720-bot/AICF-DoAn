@@ -15,9 +15,9 @@ import java.util.function.BiFunction;
  * @param name        tên hàm AI sẽ gọi, vd "get_menu"
  * @param description mô tả cho AI biết khi nào nên dùng
  * @param schema      JSON Schema mô tả tham số ("{}" = không có tham số)
- * @param staffOnly   true = chỉ nhân viên / quản trị được dùng (vd. doanh thu)
+ * @param managerOnly true = chỉ chủ quán / quản lý được dùng (vd. doanh thu)
  * @param handler     hàm Java thực thi: nhận tham số JSON + người hỏi, trả đối tượng bất kỳ (sẽ đổi sang JSON)
  */
-public record AiTool(String name, String description, String schema, boolean staffOnly,
+public record AiTool(String name, String description, String schema, boolean managerOnly,
                      BiFunction<JsonNode, AuthUser, Object> handler) {
 }

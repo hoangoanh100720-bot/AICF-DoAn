@@ -22,5 +22,5 @@ export const APP_NAME = 'AICF Coffee';
 /** Bao lâu kiểm tra số thông báo chưa đọc 1 lần (ms) - dự phòng khi chưa cấu hình Firebase. */
 export const UNREAD_POLL_MS = 30_000;
 
-/** Bao lâu làm mới bảng đơn của nhân viên (ms). */
-export const BOARD_REFRESH_MS = 10_000;
+/** Bao lâu làm mới sơ đồ bàn / màn pha chế (ms) - đơn do nhân viên khác tạo hiện ra sau tối đa chừng này. */
+export const BOARD_REFRESH_MS = 5_000;

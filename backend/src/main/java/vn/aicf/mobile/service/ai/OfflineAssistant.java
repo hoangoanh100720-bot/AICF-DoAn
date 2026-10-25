@@ -6,6 +6,7 @@ import vn.aicf.mobile.service.OrderService;
 import vn.aicf.mobile.service.ProductService;
 import vn.aicf.mobile.service.SettingsService;
 import vn.aicf.mobile.service.StatsService;
+import vn.aicf.mobile.service.TableService;
 import vn.aicf.mobile.web.dto.CatalogDtos.ProductResponse;
 import vn.aicf.mobile.web.dto.OrderDtos.OrderResponse;
 
@@ -20,7 +21,7 @@ import java.util.Map;
 
 /**
  * "CHẾ ĐỘ CƠ BẢN" của Chat AI: trả lời theo từ khóa, KHÔNG cần mạng hay khóa API.
- * Dùng khi Admin chưa nhập khóa AI, hoặc dịch vụ AI thật đang lỗi (app vẫn luôn có câu trả lời).
+ * Dùng khi chủ quán chưa nhập khóa AI, hoặc dịch vụ AI thật đang lỗi (app vẫn luôn có câu trả lời).
  * Ý tưởng lấy từ "AssistantBrain" của dự án AICF, rút gọn cho đồ án.
  */
 @Component
@@ -30,8 +31,11 @@ public class OfflineAssistant {
     private final OrderService orders;
     private final StatsService stats;
     private final SettingsService settings;
+    private final TableService tables;
 
-    public OfflineAssistant(ProductService products, OrderService orders, StatsService stats, SettingsService settings) {
+    public OfflineAssistant(ProductService products, OrderService orders, StatsService stats, SettingsService settings,
+                            TableService tables) {
+        this.tables = tables;
         this.products = products;
         this.orders = orders;
         this.stats = stats;
@@ -41,21 +45,22 @@ public class OfflineAssistant {
     /** Trả lời 1 câu hỏi dựa trên từ khóa (đã bỏ dấu tiếng Việt để so khớp dễ hơn). */
     public String answer(AuthUser user, String message) {
         String q = normalize(message);
-        if (user.isStaff() && containsAny(q, "doanh thu", "ban duoc", "thu duoc")) {
+        if (containsAny(q, "doanh thu", "ban duoc", "thu duoc", "ban chay", "nhieu nhat", "top") && !user.isManager()) {
+            return "Số liệu doanh thu chỉ chủ quán và quản lý xem được.";
+        }
+        if (containsAny(q, "doanh thu", "ban duoc", "thu duoc")) {
             return revenue(containsAny(q, "hom qua") ? LocalDate.now().minusDays(1) : LocalDate.now());
         }
-        if (user.isStaff() && containsAny(q, "ban chay", "nhieu nhat", "top")) {
+        if (containsAny(q, "ban chay", "nhieu nhat", "top")) {
             return bestSellers();
         }
-        if (user.isStaff() && containsAny(q, "dang cho", "dang xu ly", "don moi", "ban khong")) {
-            List<OrderResponse> active = orders.activeOrders();
-            return active.isEmpty() ? "Hiện không có đơn nào đang chờ xử lý."
-                    : "Đang có " + active.size() + " đơn chờ xử lý, cũ nhất là " + active.get(0).code() + " (" + active.get(0).statusLabel() + ").";
+        if (containsAny(q, "ban trong", "con ban", "ban nao")) {
+            return tablesStatus();
         }
-        if (containsAny(q, "don cua toi", "don hang", "trang thai", "don cua minh", "toi da dat")) {
-            return myOrders(user);
+        if (containsAny(q, "dang cho", "dang pha", "dang xu ly", "chua thanh toan", "chua thu", "bill", "don dang")) {
+            return openOrders();
         }
-        if (containsAny(q, "goi y", "nen uong", "uong gi", "mon nao ngon", "de xuat")) {
+        if (containsAny(q, "goi y", "tu van", "nen uong", "uong gi", "mon nao ngon", "de xuat")) {
             return suggest();
         }
         if (containsAny(q, "dia chi", "o dau", "gio mo", "mo cua", "dong cua")) {
@@ -63,7 +68,7 @@ public class OfflineAssistant {
                     + settings.get(SettingsService.SHOP_ADDRESS, "(chưa cập nhật địa chỉ)")
                     + "\n🕒 Giờ mở cửa: " + settings.get(SettingsService.SHOP_HOURS, "(chưa cập nhật)");
         }
-        if (containsAny(q, "menu", "thuc don", "co mon", "gia", "bao nhieu tien", "mon gi")) {
+        if (containsAny(q, "menu", "thuc don", "co mon", "gia", "bao nhieu tien", "mon gi", "tam het")) {
             return menu();
         }
         return help(user);
@@ -71,10 +76,10 @@ public class OfflineAssistant {
 
     /** Câu hỏi gợi ý hiện dưới khung chat (khác nhau theo vai trò). */
     public List<String> suggestions(AuthUser user) {
-        if (user.isStaff()) {
-            return List.of("Doanh thu hôm nay?", "Món nào bán chạy nhất?", "Có đơn nào đang chờ không?", "Thực đơn hiện tại");
+        if (user.isManager()) {
+            return List.of("Doanh thu hôm nay?", "Món nào bán chạy nhất?", "Bàn nào chưa thanh toán?", "Còn bàn trống không?");
         }
-        return List.of("Gợi ý cho mình 1 món", "Thực đơn có gì?", "Đơn của tôi tới đâu rồi?", "Quán mở cửa mấy giờ?");
+        return List.of("Còn bàn trống không?", "Có bill nào đang chờ pha?", "Tư vấn giúp mình 1 món cho khách", "Thực đơn hiện tại");
     }
 
     // ------------------------------------------------------------------
@@ -87,7 +92,7 @@ public class OfflineAssistant {
             }
         }
         if (byCategory.isEmpty()) {
-            return "Thực đơn đang được cập nhật, bạn quay lại sau nhé.";
+            return "Thực đơn chưa có món nào đang bán.";
         }
         StringBuilder sb = new StringBuilder("Thực đơn hôm nay:\n");
         byCategory.forEach((cat, list) -> sb.append("\n").append(cat).append(":\n").append(String.join("\n", list)).append("\n"));
@@ -97,29 +102,38 @@ public class OfflineAssistant {
     private String suggest() {
         List<ProductResponse> available = new ArrayList<>(products.findAll().stream().filter(ProductResponse::available).toList());
         if (available.isEmpty()) {
-            return "Hiện quán đang hết món, bạn quay lại sau nhé.";
+            return "Hiện không có món nào đang bán.";
         }
         Collections.shuffle(available);
-        StringBuilder sb = new StringBuilder("Mình gợi ý bạn thử:\n");
+        StringBuilder sb = new StringBuilder("Có thể giới thiệu cho khách:\n");
         available.stream().limit(3).forEach(p -> sb.append("• ").append(p.name()).append(" (").append(money(p.price())).append(")")
                 .append(p.description() == null ? "" : " - " + p.description()).append("\n"));
         return sb.toString().trim();
     }
 
-    private String myOrders(AuthUser user) {
-        List<OrderResponse> mine = orders.myOrders(user);
-        if (mine.isEmpty()) {
-            return "Bạn chưa có đơn nào. Vào mục Thực đơn để đặt món nhé!";
+    private String openOrders() {
+        List<OrderResponse> open = orders.openOrders();
+        if (open.isEmpty()) {
+            return "Hiện không có bill nào đang mở.";
         }
-        StringBuilder sb = new StringBuilder("Các đơn gần đây của bạn:\n");
-        mine.stream().limit(3).forEach(o -> sb.append("• ").append(o.code()).append(": ").append(o.statusLabel())
-                .append(", ").append(money(o.totalAmount())).append("\n"));
+        StringBuilder sb = new StringBuilder("Đang có " + open.size() + " bill mở:\n");
+        open.stream().limit(8).forEach(x -> sb.append("• ").append(x.tableName() == null ? "Mang đi " + x.code() : x.tableName())
+                .append(": ").append(x.statusLabel()).append(", ").append(money(x.totalAmount()))
+                .append(x.paid() ? " (đã thu)" : " (chưa thu)").append("\n"));
         return sb.toString().trim();
+    }
+
+    private String tablesStatus() {
+        java.util.Set<Long> busy = new java.util.HashSet<>();
+        orders.openOrders().stream().filter(x -> x.tableId() != null).forEach(x -> busy.add(x.tableId()));
+        List<String> free = tables.findAll().stream().filter(t -> t.active() && !busy.contains(t.id())).map(t -> t.name()).toList();
+        return free.isEmpty() ? "Hiện không còn bàn trống (" + busy.size() + " bàn đang có khách)."
+                : "Còn " + free.size() + " bàn trống: " + String.join(", ", free) + ". Đang có khách: " + busy.size() + " bàn.";
     }
 
     private String revenue(LocalDate day) {
         StatsService.Summary s = stats.summary(day, day, 3);
-        return "Ngày " + day + ": doanh thu " + money(s.revenue()) + " từ " + s.completedCount() + " đơn hoàn thành"
+        return "Ngày " + day + ": doanh thu " + money(s.revenue()) + " từ " + s.paidCount() + " bill đã thu tiền"
                 + " (tổng " + s.orderCount() + " đơn, hủy " + s.cancelledCount() + ").";
     }
 
@@ -127,7 +141,7 @@ public class OfflineAssistant {
         LocalDate today = LocalDate.now();
         StatsService.Summary s = stats.summary(today.minusDays(6), today, 5);
         if (s.topProducts().isEmpty()) {
-            return "7 ngày qua chưa có đơn hoàn thành nào để thống kê.";
+            return "7 ngày qua chưa có bill nào thu tiền để thống kê.";
         }
         StringBuilder sb = new StringBuilder("Món bán chạy 7 ngày qua:\n");
         s.topProducts().forEach(t -> sb.append("• ").append(t.productName()).append(": ").append(t.quantity())

@@ -15,7 +15,7 @@ import java.util.List;
 
 /**
  * BỘ LỌC chạy trước mọi request: đọc header "Authorization: Bearer ...", kiểm tra JWT
- * rồi báo cho Spring Security biết ai đang gọi và có vai trò gì ("ROLE_ADMIN"...).
+ * rồi báo cho Spring Security biết ai đang gọi và có vai trò gì ("ROLE_OWNER", "ROLE_STAFF"...).
  *
  * <p>Nạp lại người dùng từ CSDL ở mỗi request để: tài khoản bị khóa / đổi vai trò có hiệu lực NGAY,
  * không phải chờ token hết hạn. Token sai hoặc không có -> request đi tiếp dưới dạng "khách vãng lai";

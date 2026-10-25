@@ -32,7 +32,7 @@ import java.util.Map;
  *   DELETE /api/devices?token=...             xóa mã khi đăng xuất
  * </pre>
  */
-@Tag(name = "07. Thông báo & FCM")
+@Tag(name = "07. Thông báo & FCM", description = "Hộp thư trong app (đơn mới, đồ đã xong, đơn bị hủy) và đăng ký thiết bị nhận thông báo đẩy Firebase")
 @RestController
 public class NotificationController {
 

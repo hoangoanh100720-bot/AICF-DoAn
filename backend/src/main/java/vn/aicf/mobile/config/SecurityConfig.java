@@ -27,19 +27,22 @@ import java.util.List;
  * CẤU HÌNH BẢO MẬT - toàn bộ luật "ai được gọi API nào" nằm ở MỘT chỗ để dễ đọc / dễ chấm.
  *
  * <pre>
- *   API                                         Ai được gọi
- *   ------------------------------------------  ----------------------------------
- *   /api/auth/**  (đăng ký, đăng nhập)          Mọi người
- *   GET /api/categories, /products, /tables     Mọi người (xem thực đơn không cần đăng nhập)
- *   GET /api/shop, /api/health                  Mọi người
- *   POST/PUT/DELETE categories, products, tables  ADMIN
- *   /api/stats/**, /api/settings/**, /api/users/** (trừ /me)  ADMIN
- *   Các /api/** còn lại (đơn hàng, chat, thông báo...)  Đã đăng nhập (chi tiết vai trò dùng @PreAuthorize)
+ *   API                                               Ai được gọi
+ *   ------------------------------------------------  ---------------------------------------------
+ *   /api/auth/** (đăng nhập), GET /api/shop, /api/health  Mọi người (màn đăng nhập cần tên quán)
+ *   GET /api/categories, /products, /tables           Mọi người ĐÃ ĐĂNG NHẬP
+ *   POST/PUT/DELETE categories, products, tables      OWNER, MANAGER (quản lý thực đơn, sơ đồ bàn)
+ *   /api/stats/**                                     OWNER, MANAGER
+ *   /api/settings/**                                  OWNER (thông tin quán, khóa API AI)
+ *   /api/users/me/**                                  Mọi người đã đăng nhập
+ *   /api/users/** còn lại                             OWNER, MANAGER (chi tiết thêm trong UserService)
+ *   Các /api/** còn lại (đơn hàng, chat, thông báo)   Đã đăng nhập (luật riêng nằm trong Service)
  *   Đường dẫn ngoài /api (giao diện PWA, Swagger)     Mọi người
  * </pre>
+ * App chỉ dùng nội bộ quán: không có API nào cho khách hàng.
  */
 @Configuration
-@EnableMethodSecurity   // bật @PreAuthorize("hasRole('STAFF')") trên từng phương thức controller
+@EnableMethodSecurity   // bật @PreAuthorize("hasAnyRole('OWNER','MANAGER')") trên từng phương thức controller
 public class SecurityConfig {
 
     /** Băm mật khẩu bằng BCrypt (có "muối" ngẫu nhiên, chậm có chủ đích -> khó dò mật khẩu). */
@@ -62,10 +65,11 @@ public class SecurityConfig {
                         // Trình duyệt gửi OPTIONS trước request khác nguồn (CORS preflight)
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/auth/**", "/api/health", "/api/shop").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/categories/**", "/api/products/**", "/api/tables/**").permitAll()
-                        .requestMatchers("/api/categories/**", "/api/products/**", "/api/tables/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/categories/**", "/api/products/**", "/api/tables/**").authenticated()
+                        .requestMatchers("/api/categories/**", "/api/products/**", "/api/tables/**").hasAnyRole("OWNER", "MANAGER")
                         .requestMatchers("/api/users/me", "/api/users/me/**").authenticated()
-                        .requestMatchers("/api/stats/**", "/api/settings/**", "/api/users/**").hasRole("ADMIN")
+                        .requestMatchers("/api/stats/**", "/api/users/**").hasAnyRole("OWNER", "MANAGER")
+                        .requestMatchers("/api/settings/**").hasRole("OWNER")
                         .requestMatchers("/api/**").authenticated()
                         // Mọi đường dẫn ngoài /api: giao diện PWA, ảnh, và trang Swagger
                         // (/swagger-ui.html, /swagger-ui/**, /v3/api-docs) -> mở tự do. Trang Swagger chỉ là tài liệu;

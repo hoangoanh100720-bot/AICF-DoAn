@@ -36,10 +36,10 @@ public class User extends BaseEntity {
     @Column(name = "avatar_url")
     private String avatarUrl;
 
-    /** Lưu tên hằng số ("ADMIN"...) thay vì số thứ tự -> đọc được trong CSDL, thêm vai trò mới không lệch dữ liệu. */
+    /** Lưu tên hằng số ("OWNER"...) thay vì số thứ tự -> đọc được trong CSDL, thêm vai trò mới không lệch dữ liệu. */
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private Role role = Role.CUSTOMER;
+    private Role role = Role.STAFF;
 
     /** UID bên Firebase Authentication, có khi người dùng đăng nhập bằng Google. */
     @Column(name = "firebase_uid", unique = true)

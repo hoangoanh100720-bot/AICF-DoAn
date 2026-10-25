@@ -22,7 +22,8 @@ import vn.aicf.mobile.web.dto.ChatDtos.MessageResponse;
 import java.util.List;
 
 /**
- * API CHAT AI (cần đăng nhập; khách và nhân viên đều dùng được, công cụ dữ liệu khác nhau theo vai trò).
+ * API CHAT AI (cần đăng nhập; mọi vai trò dùng được, công cụ dữ liệu khác nhau theo vai trò:
+ * nhân viên bán hàng không xem được doanh thu).
  * <pre>
  *   GET    /api/chat/status    AI thật hay chế độ cơ bản + câu hỏi gợi ý
  *   POST   /api/chat           gửi câu hỏi, nhận câu trả lời
@@ -30,7 +31,7 @@ import java.util.List;
  *   DELETE /api/chat           xóa lịch sử
  * </pre>
  */
-@Tag(name = "08. Chat AI")
+@Tag(name = "08. Chat AI", description = "Trợ lý AI trả lời dựa trên dữ liệu thật của quán (Gemini / Claude, hoặc chế độ cơ bản khi chưa có khóa API)")
 @RestController
 @RequestMapping("/api/chat")
 public class ChatController {

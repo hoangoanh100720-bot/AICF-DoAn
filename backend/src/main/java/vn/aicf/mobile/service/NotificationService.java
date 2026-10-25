@@ -27,7 +27,7 @@ import java.util.Set;
  *   <li>Lưu vào bảng NOTIFICATIONS (hộp thư trong app) - luôn chạy.</li>
  *   <li>Đẩy qua Firebase Cloud Messaging tới các thiết bị đã đăng ký - chỉ khi đã cấu hình Firebase.</li>
  * </ol>
- * Các service khác (vd. OrderService) chỉ cần gọi {@link #notifyUsers} hoặc {@link #notifyStaff}.
+ * Các service khác (vd. OrderService) chỉ cần gọi {@link #notifyUsers}, {@link #notifyTeam} hoặc {@link #notifyManagers}.
  */
 @Service
 public class NotificationService {
@@ -69,10 +69,21 @@ public class NotificationService {
         push.send(devices.findTokensOfUsers(userIds), title, body, data);
     }
 
-    /** Gửi cho toàn bộ nhân viên + quản trị (vd. "Có đơn mới"). */
+    /** Gửi cho cả quán trừ người vừa thao tác (vd. "Đơn mới · Bàn 02" để quầy pha chế biết). */
     @Transactional
-    public void notifyStaff(String title, String body, Long orderId) {
-        List<Long> ids = users.findByRoleInAndActiveTrue(Set.of(Role.STAFF, Role.ADMIN)).stream().map(User::getId).toList();
+    public void notifyTeam(Long exceptUserId, String title, String body, Long orderId) {
+        notifyRoles(Set.of(Role.OWNER, Role.MANAGER, Role.STAFF), exceptUserId, title, body, orderId);
+    }
+
+    /** Gửi cho chủ quán + quản lý trừ người vừa thao tác (vd. "Đơn ... đã hủy"). */
+    @Transactional
+    public void notifyManagers(Long exceptUserId, String title, String body, Long orderId) {
+        notifyRoles(Set.of(Role.OWNER, Role.MANAGER), exceptUserId, title, body, orderId);
+    }
+
+    private void notifyRoles(Set<Role> roles, Long exceptUserId, String title, String body, Long orderId) {
+        List<Long> ids = users.findByRoleInAndActiveTrue(roles).stream().map(User::getId)
+                .filter(id -> !id.equals(exceptUserId)).toList();
         notifyUsers(ids, title, body, orderId);
     }
 

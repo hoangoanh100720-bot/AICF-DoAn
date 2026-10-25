@@ -1,19 +1,37 @@
 {
-  "name": "AICF Coffee - Đặt món & Trợ lý AI",
-  "short_name": "AICF Coffee",
-  "description": "Đặt món, theo dõi đơn hàng, nhận thông báo và hỏi Trợ lý AI của quán cà phê AICF",
+  "name": "AICF Coffee - Bán hàng",
+  "short_name": "AICF",
+  "description": "App bán hàng nội bộ của quán cà phê cho chủ quán, quản lý và nhân viên: sơ đồ bàn, gọi món, pha chế, thu tiền, tổng quan, Trợ lý AI",
   "lang": "vi",
   "id": "/",
   "start_url": "./#/",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#f8f3ec",
-  "theme_color": "#5a3417",
-  "categories": ["food", "shopping"],
+  "background_color": "#faf4ea",
+  "theme_color": "#2b1810",
+  "categories": [
+    "business",
+    "food"
+  ],
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ]
 }

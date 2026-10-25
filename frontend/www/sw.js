@@ -6,46 +6,53 @@
    Đổi nội dung file trong danh sách cache -> tăng CACHE_VERSION để người dùng nhận bản mới.
    ============================================================================= */
 
-const CACHE_VERSION = 'aicf-mobile-v3';
+const CACHE_VERSION = 'aicf-ban-hang-v2';
 
 /** Các file "vỏ app" tải sẵn ngay khi cài service worker. */
 const APP_SHELL = [
   './',
   './index.html',
   './manifest.webmanifest',
+  './css/style.css',
+  './css/staff.css',
   './css/app.css',
+  './fonts/BeVietnamPro-Regular.ttf',
+  './fonts/BeVietnamPro-SemiBold.ttf',
+  './fonts/BeVietnamPro-Bold.ttf',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './js/app.js',
   './js/config.js',
   './js/core/dom.js',
+  './js/core/format.js',
   './js/core/http.js',
   './js/core/router.js',
   './js/core/store.js',
-  './js/core/format.js',
-  './js/data/local-db.js',
-  './js/data/session.js',
   './js/data/api.js',
-  './js/data/repositories.js',
   './js/data/cart.js',
-  './js/ui/components.js',
-  './js/ui/icons.js',
-  './js/ui/crud-page.js',
+  './js/data/local-db.js',
+  './js/data/repositories.js',
+  './js/data/session.js',
   './js/firebase/firebase-config.js',
   './js/firebase/firebase.js',
   './js/firebase/push.js',
-  './js/pages/login.js',
-  './js/pages/menu.js',
-  './js/pages/cart.js',
-  './js/pages/orders.js',
+  './js/pages/bill.js',
   './js/pages/chat.js',
+  './js/pages/dashboard.js',
+  './js/pages/history.js',
+  './js/pages/kitchen.js',
+  './js/pages/login.js',
+  './js/pages/manage.js',
+  './js/pages/more.js',
   './js/pages/notifications.js',
-  './js/pages/profile.js',
-  './js/pages/staff-board.js',
-  './js/pages/admin-dashboard.js',
-  './js/pages/admin-manage.js',
-  './js/pages/admin-users.js',
-  './js/pages/admin-settings.js',
+  './js/pages/payment.js',
+  './js/pages/picker.js',
+  './js/pages/settings.js',
+  './js/pages/staff.js',
+  './js/pages/tables.js',
+  './js/ui/components.js',
+  './js/ui/crud-page.js',
+  './js/ui/icons.js',
 ];
 
 // Cài đặt: tải và lưu vỏ app vào cache
@@ -110,11 +117,11 @@ self.addEventListener('push', (event) => {
   );
 });
 
-// Bấm vào thông báo: mở app (hoặc chuyển tới tab đang mở) tại trang đơn hàng liên quan
+// Bấm vào thông báo: mở app (hoặc chuyển tới tab đang mở) và mở bill liên quan
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const orderId = event.notification.data && event.notification.data.orderId;
-  const target = new URL(orderId ? './#/orders/' + orderId : './#/notifications', self.registration.scope).href;
+  const target = new URL(orderId ? './#/history?order=' + orderId : './#/notifications', self.registration.scope).href;
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
       for (const c of list) {

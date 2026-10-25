@@ -1,5 +1,6 @@
 package vn.aicf.mobile.web.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -35,8 +36,12 @@ public final class CatalogDtos {
             boolean available) {
     }
 
+    /**
+     * @param bestSeller món nằm trong top bán nhiều nhất 30 ngày qua (app gắn nhãn "Bán chạy"), tính từ đơn đã thu tiền
+     */
     public record ProductResponse(Long id, Long categoryId, String categoryName, String categoryIcon, String name,
-                                  String description, long price, String imageUrl, boolean available) {
+                                  String description, long price, String imageUrl, boolean available,
+                                  @Schema(description = "Top bán chạy 30 ngày qua (nhãn \"Bán chạy\" trên app)") boolean bestSeller) {
     }
 
     // ---------------- Bàn ----------------

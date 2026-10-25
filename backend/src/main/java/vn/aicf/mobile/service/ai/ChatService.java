@@ -130,17 +130,15 @@ public class ChatService {
     /** Lời dặn hệ thống: AI là ai, đang nói chuyện với ai, hôm nay ngày mấy, quy tắc trả lời. */
     private String systemPrompt(AuthUser user) {
         LocalDate today = LocalDate.now();
-        String who = user.isStaff()
-                ? user.fullName() + " (" + (user.isAdmin() ? "chủ quán" : "nhân viên") + " của quán)"
-                : user.fullName() + " (khách hàng)";
+        String who = user.fullName() + " (" + user.role().label().toLowerCase() + " của quán)";
         return "Bạn là Trợ lý AI của quán cà phê \"" + settings.get(SettingsService.SHOP_NAME, "AICF Coffee")
-                + "\", đang trò chuyện trong app di động với " + who + ".\n"
+                + "\", đang trò chuyện trong app bán hàng nội bộ của quán với " + who + ".\n"
                 + "Hôm nay là " + DAY_NAMES[today.getDayOfWeek().getValue() - 1] + ", ngày " + today + " (giờ Việt Nam). Tiền tệ: đồng (đ).\n"
                 + "Quy tắc:\n"
                 + "- Trả lời bằng tiếng Việt, thân thiện, ngắn gọn (tối đa khoảng 120 từ), phù hợp màn hình điện thoại.\n"
                 + "- Thực đơn, giá, đơn hàng, doanh thu: CHỈ dùng số liệu lấy từ công cụ, không bịa. Công cụ báo lỗi hoặc không có quyền thì nói thẳng.\n"
                 + "- Cần khoảng ngày thì tự đổi \"hôm nay / hôm qua / tuần này\" thành ngày YYYY-MM-DD dựa vào ngày hôm nay.\n"
-                + "- Bạn chỉ ĐỌC dữ liệu. Muốn đặt món, hủy đơn, sửa giá... thì hướng dẫn người dùng thao tác trong app.\n"
+                + "- Bạn chỉ ĐỌC dữ liệu. Muốn gọi món, hủy đơn, thu tiền, sửa giá... thì hướng dẫn người dùng thao tác trong app.\n"
                 + "- Không nhắc tới khóa API, mật khẩu hay chi tiết kỹ thuật nội bộ.";
     }
 

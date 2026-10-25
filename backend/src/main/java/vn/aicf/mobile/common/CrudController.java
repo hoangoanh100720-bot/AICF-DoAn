@@ -1,6 +1,7 @@
 package vn.aicf.mobile.common;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -39,34 +40,37 @@ public abstract class CrudController<REQ, RES> {
     /** Service CRUD mà controller này dùng. */
     protected abstract CrudService<?, REQ, RES> service();
 
-    // @Operation viết 1 lần ở lớp cha -> Swagger hiện cùng mô tả cho cả 3 nhóm Danh mục, Món, Bàn
+    // @Operation viết 1 lần ở lớp cha; OpenApiConfig.crudSummaries() tự thêm tên tài nguyên vào câu mô tả
+    // ("Lấy danh sách" -> "Lấy danh sách món") cho từng nhóm Danh mục, Món, Bàn trên trang Swagger.
+    // @Parameter(hidden = true): ẩn tham số dạng Map (Swagger không vẽ được); lớp con nào có bộ lọc
+    // thì tự khai báo từng tham số (xem ProductController).
     @GetMapping
-    @Operation(summary = "Lấy danh sách (có thể lọc bằng tham số trên URL)")
-    public List<RES> list(@RequestParam Map<String, String> filters) {
+    @Operation(summary = "Lấy danh sách")
+    public List<RES> list(@Parameter(hidden = true) @RequestParam Map<String, String> filters) {
         return filters.isEmpty() ? service().findAll() : service().findAll(filters);
     }
 
     @GetMapping("/{id}")
-    @Operation(summary = "Lấy 1 bản ghi theo id")
+    @Operation(summary = "Xem 1")
     public RES get(@PathVariable Long id) {
         return service().findById(id);
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @Operation(summary = "Thêm mới (ADMIN)")
+    @Operation(summary = "Thêm (OWNER, MANAGER)")
     public RES create(@Valid @RequestBody REQ request) {
         return service().create(request);
     }
 
     @PutMapping("/{id}")
-    @Operation(summary = "Sửa theo id (ADMIN)")
+    @Operation(summary = "Sửa (OWNER, MANAGER)")
     public RES update(@PathVariable Long id, @Valid @RequestBody REQ request) {
         return service().update(id, request);
     }
 
     @DeleteMapping("/{id}")
-    @Operation(summary = "Xóa theo id (ADMIN)")
+    @Operation(summary = "Xóa (OWNER, MANAGER)")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         service().delete(id);
         return ResponseEntity.noContent().build();

@@ -2,7 +2,7 @@
 -- DỮ LIỆU MẪU - chỉ thêm khi bảng còn TRỐNG (lần chạy đầu tiên)
 -- -----------------------------------------------------------------------------
 -- Mẫu câu lệnh:  INSERT INTO bang (...) SELECT ... WHERE NOT EXISTS (SELECT 1 FROM bang);
--- => Lần sau khởi động, bảng đã có dữ liệu nên câu lệnh không thêm gì (không ghi đè sửa đổi của Admin).
+-- => Lần sau khởi động, bảng đã có dữ liệu nên câu lệnh không thêm gì (không ghi đè sửa đổi của chủ quán).
 -- Tài khoản người dùng KHÔNG nằm ở đây vì mật khẩu phải băm BCrypt: xem lớp DataSeeder.java.
 -- Ảnh món: đường dẫn tương đối /img/... do backend phục vụ từ thư mục frontend/www/img.
 -- =============================================================================

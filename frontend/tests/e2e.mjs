@@ -2,8 +2,10 @@
 // KIỂM THỬ ĐẦU-CUỐI (end-to-end) GIAO DIỆN APP bằng Chrome chạy ẩn (headless), điều khiển qua
 // Chrome DevTools Protocol - không cần cài thêm thư viện, chỉ cần Node.js 22+ và Google Chrome.
 //
-// Kịch bản: khách đăng nhập -> xem thực đơn, tìm món -> thêm vào giỏ (lưu ở LocalDb) -> đặt đơn tại bàn
-// -> nhân viên xử lý đơn -> khách thấy trạng thái + thông báo -> chat AI -> admin xem tổng quan, quản lý món.
+// Kịch bản bán hàng 1 ca: nhân viên đăng nhập -> chạm bàn trống, chọn món (phiếu nháp còn sau khi đóng)
+// -> gửi pha chế -> màn Pha chế: Bắt đầu / Xong -> mang ra -> thu tiền mặt, tính tiền thối -> bàn trống lại
+// -> đơn mang về rồi hủy -> Trợ lý AI -> quản lý xem Tổng quan, sửa thực đơn / bàn, tạo tài khoản nhân viên
+// -> chủ quán mở Cài đặt.
 // Mỗi bước chụp ảnh màn hình vào thư mục kết quả để đưa vào báo cáo.
 //
 // Chạy (backend đang chạy với dữ liệu mẫu):
@@ -56,8 +58,13 @@ const results = [];
 const ok = (name, cond, detail = '') => results.push({ name, ok: !!cond, detail: String(detail ?? '') });
 const go = async (hash, wait = 1500) => { await ev(`location.hash = ${JSON.stringify(hash)}; true`); await sleep(wait); };
 const text = () => ev('document.body.innerText');
-const clickText = (sel, t) => ev(`(() => { const b = [...document.querySelectorAll(${JSON.stringify(sel)})].find((x) => x.textContent.includes(${JSON.stringify(t)})); if (b) b.click(); return !!b; })()`);
-const fill = (sel, v) => ev(`(() => { const i = document.querySelector(${JSON.stringify(sel)}); i.value = ${JSON.stringify(v)}; i.dispatchEvent(new Event('input', {bubbles:true})); i.dispatchEvent(new Event('change', {bubbles:true})); return true; })()`);
+const count = (sel) => ev(`document.querySelectorAll(${JSON.stringify(sel)}).length`);
+const click = (sel) => ev(`(() => { const b = document.querySelector(${JSON.stringify(sel)}); if (b) b.click(); return !!b; })()`);
+/** Bấm phần tử khớp selector có chứa chữ t (lấy cái CUỐI CÙNG = hộp thoại trên cùng). */
+const clickText = (sel, t) => ev(`(() => { const b = [...document.querySelectorAll(${JSON.stringify(sel)})].filter((x) => x.textContent.includes(${JSON.stringify(t)})).pop(); if (b) b.click(); return !!b; })()`);
+const fill = (sel, v) => ev(`(() => { const i = [...document.querySelectorAll(${JSON.stringify(sel)})].pop(); i.value = ${JSON.stringify(v)}; i.dispatchEvent(new Event('input', {bubbles:true})); i.dispatchEvent(new Event('change', {bubbles:true})); return true; })()`);
+const topSheet = () => ev(`[...document.querySelectorAll('.sheet')].pop()?.innerText || ''`);
+const closeSheets = async () => { await ev(`[...document.querySelectorAll('.sheet .sheet-head .icon-btn')].reverse().forEach((b) => b.click()); true`); await sleep(600); };
 const api = async (path, method = 'GET', body, token) => {
   const r = await fetch(BASE + path, { method, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: body ? JSON.stringify(body) : undefined });
   const t = await r.text();
@@ -68,173 +75,233 @@ const uiLogin = async (user, pass) => {
   await go('/login', 1200);
   await fill('input[name=username]', user);
   await fill('input[name=password]', pass);
-  await ev(`document.querySelector('form button[type=submit]').click(); true`);
+  await ev(`document.querySelector('.st-login form button[type=submit]').click(); true`);
   await sleep(2000);
 };
-/** Đăng xuất bằng giao diện: Tài khoản -> Đăng xuất -> xác nhận. */
+/** Đăng xuất: Thêm / Tôi -> Đăng xuất -> xác nhận. */
 const uiLogout = async () => {
-  await go('/profile', 1500);
-  await clickText('.btn-danger', 'Đăng xuất');
-  await sleep(700);
-  await clickText('dialog .btn', 'Đăng xuất');
+  await go('/more', 1200);
+  await click('[data-act=logout]');
+  await sleep(600);
+  await click('.sheet [data-act=confirm]');
   await sleep(1500);
-  ok('Đăng xuất -> về Thực đơn (chế độ khách vãng lai)', (await ev('location.hash')) === '#/menu');
+  ok('Đăng xuất -> về màn Đăng nhập', (await ev('location.hash')) === '#/login');
 };
+/** Chạm vào món trong màn chọn món. */
+const tapProduct = (name) => click(`.sheet .st-prod[data-product="${name}"]`);
+
+// Bàn dùng cho kịch bản: chọn 1 bàn đang trống (chạy test nhiều lần vẫn đúng)
+const staffToken = (await api('/api/auth/login', 'POST', { username: 'nhanvien', password: 'nhanvien123' })).data.token;
+const openNow = (await api('/api/orders/active', 'GET', null, staffToken)).data;
+const tables = (await api('/api/tables', 'GET', null, staffToken)).data.filter((t) => t.active);
+const TABLE = tables.find((t) => !openNow.some((o) => o.tableId === t.id)).name;
 
 // =============================== KỊCH BẢN ===============================
-// --- KHÁCH VÃNG LAI: không cần đăng nhập vẫn xem thực đơn và bỏ món vào giỏ ---
+// --- Đăng nhập ---
 await cdp('Page.navigate', { url: BASE + '/' });
 await sleep(2500);
-ok('Mở app chưa đăng nhập -> vào thẳng Thực đơn', (await ev('location.hash')) === '#/menu');
-ok('Thanh tab khách vãng lai có Giỏ hàng + Đăng nhập', await ev(`!!document.querySelector('.tab[href="#/cart"]') && !!document.querySelector('.tab[href="#/login"]')`));
-const productCount = await ev(`document.querySelectorAll('.product').length`);
-ok('Hiện danh sách món (không cần đăng nhập)', productCount >= 10, productCount);
-await shot('thuc-don-khach-vang-lai');
-
-await fill('#menu-search', 'latte');
-await sleep(300);
-ok('Tìm "latte" lọc đúng món', (await ev(`document.querySelectorAll('.product').length`)) === 1);
-await fill('#menu-search', '');
-await sleep(300);
-await clickText('.chip', 'Trà');
-await sleep(300);
-ok('Lọc danh mục Trà', (await ev(`[...document.querySelectorAll('.product .name')].every(n => n.textContent.includes('Trà'))`)));
-await clickText('.chip', 'Tất cả');
-await sleep(300);
-
-// Thêm 2 ly "Cà phê sữa đá" + 1 Latte khi CHƯA đăng nhập
-const addByName = (n) => ev(`(() => { const c = [...document.querySelectorAll('.product')].find(p => p.querySelector('.name').textContent === ${JSON.stringify(n)}); c.querySelector('.add-btn').click(); return true; })()`);
-await addByName('Cà phê sữa đá'); await sleep(500);
-await addByName('Cà phê sữa đá'); await sleep(500);
-await addByName('Latte'); await sleep(800);
-ok('Khách vãng lai thêm được món: huy hiệu giỏ = 3', (await ev(`document.querySelector('.tab[href="#/cart"] .badge')?.textContent`)) === '3');
-ok('Hiện nút giỏ hàng nổi', await ev(`!document.querySelector('.cart-fab').hidden`));
-await shot('them-vao-gio');
-
-// Giỏ còn sau khi tải lại trang (lưu trong LocalDb)
-await cdp('Page.reload');
-await sleep(2500);
-ok('Giỏ hàng vẫn còn sau khi tải lại app (LocalDb)', (await ev(`document.querySelector('.tab[href="#/cart"] .badge')?.textContent`)) === '3');
-
-// Xem mục cần tài khoản -> được đưa sang Đăng nhập
-await go('/orders', 1500);
-ok('Khách vãng lai mở Đơn hàng -> chuyển sang Đăng nhập', (await ev('location.hash')).startsWith('#/login?next='));
-
-// Giỏ hàng -> bấm đặt -> phải đăng nhập
-await go('/cart', 1500);
-ok('Nút đặt hiện "Đăng nhập để đặt món"', (await text()).includes('Đăng nhập để đặt món'));
-await ev(`document.querySelector('form button[type=submit]').click(); true`);
-await sleep(1500);
-ok('Bấm đặt khi chưa đăng nhập -> màn Đăng nhập (?next=/cart)', (await ev('location.hash')) === '#/login?next=/cart');
-ok('Màn Đăng nhập giải thích lý do + giỏ vẫn giữ', (await text()).includes('Giỏ hàng của bạn vẫn được giữ nguyên'));
-await shot('dang-nhap-de-dat-mon');
-
-// Sai mật khẩu
-await fill('input[name=username]', 'khach');
+ok('Mở app chưa đăng nhập -> màn Đăng nhập', (await ev('location.hash')) === '#/login');
+ok('Màn đăng nhập không có thanh điều hướng, có tài khoản mẫu', await ev(`document.getElementById('tabbar').hidden && !!document.querySelector('.st-demo .st-chip')`));
+await shot('dang-nhap');
+await fill('input[name=username]', 'nhanvien');
 await fill('input[name=password]', 'sai-mat-khau');
-await ev(`document.querySelector('form button[type=submit]').click(); true`);
+await ev(`document.querySelector('.st-login form button[type=submit]').click(); true`);
 await sleep(1200);
 ok('Sai mật khẩu -> báo lỗi', (await text()).includes('Sai tên đăng nhập hoặc mật khẩu'));
 
-// Đăng nhập đúng -> quay lại giỏ, món còn nguyên
-await fill('input[name=password]', 'khach123');
-await ev(`document.querySelector('form button[type=submit]').click(); true`);
-await sleep(2500);
-ok('Đăng nhập xong -> quay lại Giỏ hàng', (await ev('location.hash')) === '#/cart');
-ok('Thanh tab chuyển sang tab của khách (Đơn hàng, Tài khoản)', await ev(`!!document.querySelector('.tab[href="#/orders"]') && !!document.querySelector('.tab[href="#/profile"]')`));
-ok('Giỏ còn đủ 3 món sau khi đăng nhập', (await ev(`document.querySelector('.tab[href="#/cart"] .badge')?.textContent`)) === '3');
+await uiLogin('nhanvien', 'nhanvien123');
+ok('Nhân viên đăng nhập -> Sơ đồ bàn', (await ev('location.hash')) === '#/tables');
+ok('Thanh dưới của nhân viên: Bàn, Pha chế, Đơn hàng, Trợ lý AI, Tôi (không có Tổng quan)',
+  (await ev(`[...document.querySelectorAll('.st-nav-btn')].map((b) => b.dataset.tab).join(',')`)) === 'tables,kitchen,history,chat,more');
+ok('Sơ đồ bàn nhóm theo khu vực', (await count('.st-area')) >= 2 && (await count('.st-table')) >= 6);
+await shot('so-do-ban');
+ok('Màn trên thanh dưới (Bàn) không có nút quay lại', (await count('[data-act=back]')) === 0);
+await click('.st-header .st-bell');
+await sleep(1200);
+ok('Mở Thông báo từ chuông -> có nút quay lại', (await ev('location.hash')) === '#/notifications' && (await count('[data-act=back]')) === 1);
+await click('[data-act=back]');
+await sleep(1200);
+ok('Bấm quay lại -> về đúng Sơ đồ bàn', (await ev('location.hash')) === '#/tables');
 
-await shot('gio-hang');
-await ev(`document.querySelector('#table').value = document.querySelector('#table option:nth-child(3)').value; true`);
-await fill('#order-note', 'Mang ra giúp mình nhé');
-await ev(`document.querySelector('form button[type=submit]').click(); true`);
-await sleep(2500);
-const hash = await ev('location.hash');
-ok('Đặt đơn -> mở chi tiết đơn', /^#\/orders\/\d+$/.test(hash), hash);
-const orderId = Number(hash.split('/').pop());
-const t1 = await text();
-ok('Tổng tiền đúng 103.000 đ (2x29k + 45k)', t1.includes('103.000'));
-ok('Trạng thái Chờ xác nhận', t1.includes('Chờ xác nhận'));
-ok('Giỏ đã được làm trống', !(await ev(`document.querySelector('.tab[href="#/cart"] .badge')`)));
-await shot('chi-tiet-don');
-
-// --- NHÂN VIÊN xử lý đơn qua API (song song với khách) ---
-const staff = (await api('/api/auth/login', 'POST', { username: 'staff', password: 'staff123' })).data.token;
-for (const s of ['CONFIRMED', 'PREPARING', 'READY']) {
-  const r = await api(`/api/orders/${orderId}/status`, 'PATCH', { status: s }, staff);
-  ok(`Nhân viên chuyển đơn sang ${s}`, r.status === 200, r.status);
-}
-await cdp('Page.reload');
-await sleep(2500);
-ok('Khách thấy đơn "Đã xong, chờ lấy"', (await text()).includes('Đã xong, chờ lấy'));
-await go('/profile', 1500);
-await ev(`window.dispatchEvent(new Event('focus')); document.dispatchEvent(new Event('visibilitychange')); true`);
+// --- Chạm bàn trống -> chọn món; phiếu nháp còn sau khi đóng (LocalDb) ---
+await click(`.st-table[data-table="${TABLE}"]`);
 await sleep(1500);
-ok('Có huy hiệu thông báo chưa đọc', !!(await ev(`document.querySelector('.tab[href="#/profile"] .badge')?.textContent`)));
-await go('/notifications', 1500);
-ok('Hộp thư có thông báo đơn', (await text()).includes('Đã xong, chờ lấy'));
-await shot('thong-bao');
+ok('Chạm bàn trống -> mở thẳng màn chọn món', (await count('.sheet .st-prod')) >= 10);
+await fill('#pick-search', 'latte');
+await sleep(300);
+ok('Tìm "latte" lọc đúng 1 món', (await ev(`[...document.querySelectorAll('.sheet .st-prod')].filter((p) => p.offsetParent).length`)) === 1);
+await fill('#pick-search', '');
+await sleep(300);
+await tapProduct('Cà phê sữa đá'); await sleep(300);
+await tapProduct('Cà phê sữa đá'); await sleep(300);
+await tapProduct('Latte'); await sleep(500);
+ok('Chạm món -> góc ảnh hiện ×2, nút giỏ "3 món"', (await ev(`document.querySelector('.st-prod[data-product="Cà phê sữa đá"] .st-badge').textContent`)) === '×2'
+  && (await ev(`document.querySelector('[data-act=view-cart]').textContent`)).includes('3 món'));
+await shot('chon-mon');
+await closeSheets();
+ok('Đóng mà chưa gửi -> về sơ đồ bàn, bàn vẫn trống', (await count('.sheet')) === 0);
+await click(`.st-table[data-table="${TABLE}"]`);
+await sleep(1500);
+ok('Mở lại cùng bàn -> phiếu nháp vẫn còn 3 món (lưu trong LocalDb)', (await ev(`document.querySelector('[data-act=view-cart]').textContent`)).includes('3 món'));
 
-// Chat AI (chế độ cơ bản khi chưa có khóa API)
-await go('/chat', 2000);
-await fill('.composer input', 'Gợi ý cho mình 1 món');
-await ev(`document.querySelector('.composer form').requestSubmit(); true`);
-await sleep(2500);
-ok('Chat AI trả lời', (await ev(`document.querySelectorAll('.msg-ai').length`)) >= 1);
-await shot('chat-ai');
-
-// Khách không vào được trang quản trị
-await go('/admin', 1500);
-ok('Khách bị chặn khỏi /admin', (await ev('location.hash')) === '#/menu');
-
-// --- NHÂN VIÊN (giao diện) ---
-await uiLogout();
-await uiLogin('staff', 'staff123');
-ok('Nhân viên đăng nhập -> Bảng đơn', (await ev('location.hash')) === '#/board');
-ok('Bảng đơn có đơn vừa đặt', (await text()).includes('Đã giao & thu tiền'));
-await shot('bang-don-nhan-vien');
-// Bấm nút trên ĐÚNG thẻ của đơn vừa đặt (bảng có thể còn đơn khác)
-await ev(`(() => { const card = document.querySelector('a[href="#/orders/${orderId}"]').closest('.board-card');
-  [...card.querySelectorAll('.btn')].find(b => b.textContent.includes('Đã giao')).click(); return true; })()`);
+await click('[data-act=view-cart]');
+await sleep(600);
+await fill('.sheet .st-cart-line[data-line="Latte"] .st-note-input', 'ít ngọt');
+await shot('mon-da-chon');
+await click('[data-act=send]');
 await sleep(2000);
-const done = await api(`/api/orders/${orderId}`, 'GET', null, staff);
-ok('Bấm "Đã giao & thu tiền" -> đơn Hoàn thành', done.data.status === 'COMPLETED' && done.data.paid, done.data.status);
-
-// --- ADMIN ---
-await uiLogout();
-await uiLogin('admin', 'admin123');
-ok('Admin đăng nhập -> Tổng quan', (await ev('location.hash')) === '#/admin');
-await sleep(1000);
-const dash = (await api('/api/stats/dashboard', 'GET', null, staff)).status; // nhân viên không được xem
-ok('Nhân viên gọi API thống kê bị từ chối 403', dash === 403, dash);
-ok('Tổng quan hiện doanh thu và món bán chạy', (await text()).includes('Cà phê sữa đá'));
-await shot('tong-quan-admin');
-await go('/admin/manage', 2000);
-ok('Quản lý món: có danh sách', (await ev(`document.querySelectorAll('.crud-item').length`)) >= 10);
-await shot('quan-ly-mon');
-// Thêm bàn mới bằng form tự sinh
-await clickText('.segmented label', 'Bàn');
-await sleep(1500);
-await clickText('.btn', 'Thêm bàn');
+const bill = await topSheet();
+ok('Gửi pha chế -> bill: tổng 103.000đ (2×29.000 + 45.000), trạng thái Chờ pha', bill.includes('103.000đ') && bill.includes('Chờ pha'), bill.slice(0, 120));
+ok('Ghi chú món hiện trên bill', bill.includes('ít ngọt'));
+await shot('bill-ban');
+await closeSheets();
 await sleep(800);
-await fill('dialog input[name=name]', 'Bàn E2E');
-await fill('dialog input[name=seats]', '3');
-await shot('form-them-ban');
-await ev(`document.querySelector('dialog button[type=submit]').click(); true`);
+ok('Bàn chuyển sang "có khách" và hiện tổng tiền', await ev(`(() => { const t = document.querySelector('.st-table[data-table="${TABLE}"]'); return t.classList.contains('busy') && t.textContent.includes('103.000đ'); })()`));
+
+// --- Pha chế ---
+await go('/kitchen', 1800);
+ok('Pha chế: bill mới nằm ở cột Chờ pha', (await text()).includes(TABLE + ' · 3 ly'));
+await shot('pha-che');
+const code = await ev(`[...document.querySelectorAll('.st-card')].find((c) => c.textContent.includes(${JSON.stringify(TABLE)})).dataset.order`);
+await click(`.st-card[data-order="${code}"] [data-act=start]`);
+await sleep(1500);
+await click('.st-seg-btn[data-tab=PREPARING]');
+await sleep(300);
+await click(`.st-card[data-order="${code}"] [data-act=done]`);
+await sleep(1500);
+const ready = (await api('/api/orders/active', 'GET', null, staffToken)).data.find((o) => o.code === code);
+ok('Bắt đầu -> Xong: bill sang "Đã xong, chờ mang ra"', ready?.status === 'READY', ready?.status);
+
+// --- Mang ra + thu tiền mặt ---
+await go('/tables', 1800);
+ok('Sơ đồ bàn báo "Đồ đã xong · mang ra"', await ev(`document.querySelector('.st-table[data-table="${TABLE}"]').classList.contains('pending')`));
+await click(`.st-table[data-table="${TABLE}"]`);
+await sleep(1500);
+await click('.sheet [data-act=next]');
+await sleep(1500);
+ok('Bấm "Đã mang ra" -> Đã phục vụ', (await topSheet()).includes('Đã phục vụ'));
+await click('.sheet [data-act=pay]');
+await sleep(800);
+await clickText('.sheet .st-chip', '200.000');
+await sleep(300);
+ok('Thanh toán: chọn 200.000 -> hiện tiền thối 97.000đ', (await topSheet()).includes('Tiền thối: 97.000đ'));
+await shot('thanh-toan');
+await click('[data-act=do-pay]');
+await sleep(1500);
+ok('Thu tiền xong -> màn "Đã thu tiền", bill hoàn tất', (await topSheet()).includes('Bill đã hoàn tất'));
+await shot('da-thu-tien');
+await click('[data-act=pay-done]');
+await sleep(500);
+await closeSheets();
+await sleep(1000);
+ok('Bàn trống trở lại', await ev(`document.querySelector('.st-table[data-table="${TABLE}"]').textContent.includes('Trống')`));
+
+// --- Đơn mang về rồi hủy ---
+await click('[data-act=takeaway]');
+await sleep(1500);
+await tapProduct('Bạc xỉu'); await sleep(300);
+await click('[data-act=view-cart]'); await sleep(500);
+await click('[data-act=send]'); await sleep(2000);
+ok('Đơn mang về -> bill mới', (await topSheet()).includes('Bạc xỉu'));
+await click('.sheet [data-act=cancel]');
+await sleep(500);
+await click('.sheet [data-act=confirm]');
+await sleep(1500);
+ok('Nhân viên hủy được đơn chưa pha', (await topSheet()).includes('Đã hủy'));
+await closeSheets();
+
+// --- Lịch sử đơn ---
+await go('/history', 1800);
+ok('Đơn hàng hôm nay có bill vừa thu tiền', await ev(`!!document.querySelector('.st-card[data-order="${code}"]')`));
+await shot('don-hang');
+
+// --- Trợ lý AI (chế độ cơ bản khi chưa có khóa API) ---
+await go('/chat', 2000);
+await fill('.as-input', 'Còn bàn trống không?');
+await click('.as-send');
+await sleep(2500);
+ok('Trợ lý trả lời về bàn trống', (await ev(`[...document.querySelectorAll('.as-msg.bot')].pop().textContent`)).includes('bàn trống'));
+await shot('tro-ly-ai');
+
+// Nhân viên không vào được màn của quản lý
+await go('/dashboard', 1500);
+ok('Nhân viên bị chặn khỏi Tổng quan', (await ev('location.hash')) === '#/tables');
+ok('Nhân viên gọi API thống kê bị từ chối 403', (await api('/api/stats/dashboard', 'GET', null, staffToken)).status === 403);
+
+// --- QUẢN LÝ ---
+await uiLogout();
+await uiLogin('quanly', 'quanly123');
+ok('Quản lý đăng nhập -> Tổng quan', (await ev('location.hash')) === '#/dashboard');
+await sleep(1000);
+const dash = await text();
+ok('Tổng quan có doanh thu (tách tiền mặt) và món bán chạy', dash.includes('Doanh thu hôm nay') && dash.includes('Tiền mặt') && dash.includes('Cà phê sữa đá'));
+await shot('tong-quan');
+ok('Chuông thông báo có số chưa đọc (đơn mới từ nhân viên)', !!(await ev(`document.querySelector('.st-bell .st-badge')?.textContent`)));
+
+await go('/manage', 2000);
+ok('Thực đơn & bàn: danh sách món có ảnh', (await count('.crud-item')) >= 10);
+await shot('quan-ly-mon');
+await click('.st-seg-btn[data-tab=tables]');
+await sleep(1500);
+await click('[data-act=add]');
+await sleep(600);
+await fill('.sheet input[name=name]', 'Bàn E2E');
+await fill('.sheet input[name=area]', 'Sân thượng');
+await fill('.sheet input[name=seats]', '3');
+await shot('them-ban');
+await ev(`document.querySelector('.sheet form').requestSubmit(); true`);
 await sleep(1500);
 ok('Thêm bàn mới qua form CRUD tổng quát', (await text()).includes('Bàn E2E'));
-// Xóa bàn vừa thêm
-await ev(`(() => { const row = [...document.querySelectorAll('.crud-item')].find(r => r.textContent.includes('Bàn E2E')); row.querySelector('[aria-label^="Xóa"]').click(); return true; })()`);
-await sleep(800);
-await clickText('dialog .btn', 'Xóa');
+await click('.crud-item[data-row="Bàn E2E"]');
+await sleep(600);
+await click('.sheet [data-act=delete]');
+await sleep(500);
+await click('.sheet [data-act=confirm]');
 await sleep(1500);
 ok('Xóa bàn (có hộp xác nhận)', !(await text()).includes('Bàn E2E'));
-await go('/admin/settings', 2000);
-ok('Trang cài đặt AI', (await text()).includes('Trợ lý AI'));
+
+await go('/staff', 1800);
+const newUser = 'nv' + Date.now().toString().slice(-6);
+await click('[data-act=add-user]');
+await sleep(500);
+await fill('.sheet input[name=fullName]', 'Nhân viên E2E');
+await fill('.sheet input[name=username]', newUser);
+await fill('.sheet input[name=password]', 'matkhau1');
+ok('Quản lý chỉ được chọn vai trò Nhân viên bán hàng', (await ev(`[...document.querySelectorAll('.sheet select[name=role] option')].map((o) => o.value).join(',')`)) === 'STAFF');
+await ev(`document.querySelector('.sheet form').requestSubmit(); true`);
+await sleep(1500);
+ok('Tạo tài khoản nhân viên mới', await ev(`!!document.querySelector('.st-card[data-user="${newUser}"]')`));
+ok('Tài khoản mới đăng nhập được', (await api('/api/auth/login', 'POST', { username: newUser, password: 'matkhau1' })).status === 200);
+await shot('nhan-vien');
+
+await go('/settings', 1500);
+ok('Quản lý không vào được Cài đặt (chỉ chủ quán)', (await ev('location.hash')) === '#/dashboard');
+
+// --- CHỦ QUÁN ---
+await uiLogout();
+await uiLogin('chu', 'chu123');
+await go('/more', 1200);
+const moreItems = await ev(`[...document.querySelectorAll('.st-menu-item[data-menu]')].map((b) => b.dataset.menu)`);
+ok('Chủ quán: mục Thêm có Trợ lý AI, Thực đơn & bàn, Nhân viên, Cài đặt',
+  ['Trợ lý AI', 'Thực đơn & bàn', 'Nhân viên', 'Cài đặt quán & AI'].every((t) => moreItems.includes(t)), moreItems.join(', '));
+ok('Không còn chữ "null" / "undefined" lọt ra màn hình', !/\bnull\b|\bundefined\b/.test(await text()));
+await shot('them-chu-quan');
+await click('.st-menu-item[data-menu="Cài đặt quán & AI"]');
+await sleep(2000);
+ok('Mở Cài đặt từ mục Thêm -> có nút quay lại', (await ev('location.hash')) === '#/settings' && (await count('[data-act=back]')) === 1);
+await shot('cai-dat-nut-quay-lai');
+await click('[data-act=back]');
+await sleep(1200);
+ok('Bấm quay lại -> về mục Thêm', (await ev('location.hash')) === '#/more');
+await click('.st-menu-item[data-menu="Nhân viên"]');
+await sleep(1500);
+ok('Nhân viên (mở từ Thêm) cũng có nút quay lại', (await count('[data-act=back]')) === 1);
+await go('/settings', 2000);
+ok('Trang cài đặt quán & AI', (await text()).includes('Trợ lý AI') && (await text()).includes('Thông tin quán'));
 await shot('cai-dat');
 
 // =============================== KẾT QUẢ ===============================
-console.log('== Kiểm thử giao diện AICF Coffee Mobile ==');
+console.log('== Kiểm thử giao diện AICF Coffee · app bán hàng ==');
 for (const r of results) console.log((r.ok ? 'OK   ' : 'FAIL ') + r.name + (r.detail ? `  [${r.detail}]` : ''));
 console.log(jsErrors.length ? 'LỖI JS:\n' + jsErrors.join('\n') : 'Không có lỗi JS');
 const failed = results.filter((r) => !r.ok).length + jsErrors.length;
