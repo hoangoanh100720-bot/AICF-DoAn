@@ -6,7 +6,7 @@
    Đổi nội dung file trong danh sách cache -> tăng CACHE_VERSION để người dùng nhận bản mới.
    ============================================================================= */
 
-const CACHE_VERSION = 'aicf-mobile-v2';
+const CACHE_VERSION = 'aicf-mobile-v3';
 
 /** Các file "vỏ app" tải sẵn ngay khi cài service worker. */
 const APP_SHELL = [

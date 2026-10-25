@@ -1,6 +1,7 @@
 package vn.aicf.mobile.service.firebase;
 
 import com.google.auth.oauth2.GoogleCredentials;
+import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
 import com.google.firebase.auth.FirebaseAuth;
@@ -51,9 +52,13 @@ public class FirebaseService {
             return;
         }
         try (InputStream in = Files.newInputStream(Path.of(file))) {
-            FirebaseOptions options = FirebaseOptions.builder()
-                    .setCredentials(GoogleCredentials.fromStream(in))
-                    .build();
+            GoogleCredentials credentials = GoogleCredentials.fromStream(in);
+            FirebaseOptions.Builder builder = FirebaseOptions.builder().setCredentials(credentials);
+            // Lấy tên dự án từ file service account để ghi rõ vào options (log hiện đúng tên dự án)
+            if (credentials instanceof ServiceAccountCredentials sa) {
+                builder.setProjectId(sa.getProjectId());
+            }
+            FirebaseOptions options = builder.build();
             // Tránh lỗi "FirebaseApp đã tồn tại" khi Spring khởi động lại context (vd. trong test)
             app = FirebaseApp.getApps().isEmpty() ? FirebaseApp.initializeApp(options) : FirebaseApp.getInstance();
             log.info("Firebase: đã kết nối dự án '{}'", app.getOptions().getProjectId());

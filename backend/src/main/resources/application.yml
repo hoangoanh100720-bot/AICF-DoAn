@@ -21,18 +21,21 @@ spring:
   # Tham số trên URL là PRAGMA của SQLite:
   #   foreign_keys=true   bật kiểm tra khóa ngoại (SQLite mặc định TẮT)
   #   journal_mode=WAL    cho phép vừa đọc vừa ghi cùng lúc, nhanh hơn
-  #   busy_timeout=15000  đang có người ghi thì chờ tối đa 15 giây thay vì báo lỗi ngay
-  #   transaction_mode=IMMEDIATE  mỗi giao dịch giành quyền GHI ngay từ lúc bắt đầu.
-  #       Mặc định (DEFERRED) giao dịch đọc trước rồi mới xin quyền ghi; khi nhiều khách đặt đơn cùng lúc,
-  #       SQLite báo SQLITE_BUSY / SQLITE_BUSY_SNAPSHOT NGAY (không chờ busy_timeout) -> lỗi 500.
-  #       IMMEDIATE làm các giao dịch xếp hàng lần lượt, nên cũng chống được 2 nhân viên cùng sửa 1 đơn.
+  #   busy_timeout=5000   có chương trình khác (vd. DB Browser) đang ghi thì chờ tối đa 5 giây thay vì báo lỗi ngay
   # ---------------------------------------------------------------------------
   datasource:
-    url: jdbc:sqlite:${app.data-dir}/aicf-mobile.db?foreign_keys=true&journal_mode=WAL&busy_timeout=15000&transaction_mode=IMMEDIATE
+    url: jdbc:sqlite:${app.data-dir}/aicf-mobile.db?foreign_keys=true&journal_mode=WAL&busy_timeout=5000
     driver-class-name: org.sqlite.JDBC
     hikari:
-      # SQLite chỉ cho 1 luồng ghi tại 1 thời điểm -> giữ ít kết nối là đủ
-      maximum-pool-size: 4
+      # CHỈ 1 KẾT NỐI: SQLite chỉ cho 1 luồng ghi tại 1 thời điểm. Với nhiều kết nối, khi nhiều khách
+      # đặt đơn cùng lúc, các giao dịch "đọc rồi mới ghi" tranh quyền ghi và SQLite báo ngay
+      # SQLITE_BUSY / SQLITE_BUSY_SNAPSHOT (busy_timeout không cứu được) -> khách nhận lỗi 500.
+      # Dùng 1 kết nối thì các yêu cầu xếp hàng trong pool, giao dịch chạy lần lượt (mỗi cái vài ms):
+      # không còn lỗi khóa, và 2 nhân viên cùng sửa 1 đơn thì người sau thấy trạng thái người trước đã lưu.
+      # Điều kiện: không giữ kết nối lâu - gọi AI và gửi thông báo đẩy đều nằm NGOÀI giao dịch.
+      maximum-pool-size: 1
+      # Yêu cầu chờ tối đa 30 giây để tới lượt dùng kết nối (giờ cao điểm), quá thì báo lỗi
+      connection-timeout: 30000
 
   jpa:
     # Dialect cho Hibernate biết cú pháp SQL của SQLite

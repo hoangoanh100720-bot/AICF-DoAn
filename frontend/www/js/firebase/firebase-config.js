@@ -15,16 +15,16 @@
  * Các khóa ở đây là khóa CÔNG KHAI phía client (Firebase cho phép đưa vào app), không phải bí mật.
  */
 export const firebaseConfig = {
-  apiKey: '',
-  authDomain: '',
-  projectId: '',
-  storageBucket: '',
-  messagingSenderId: '',
-  appId: '',
+  apiKey: 'AIzaSyBJWLgWAOQgMUS2v1Q_Sdy0zLbG4eAnSNc',
+  authDomain: 'aicf-coffee-mobile.firebaseapp.com',
+  projectId: 'aicf-coffee-mobile',
+  storageBucket: 'aicf-coffee-mobile.firebasestorage.app',
+  messagingSenderId: '710716423357',
+  appId: '1:710716423357:web:d865fe5fffcf3002ee4bd4',
 };
 
 /** Khóa Web Push (VAPID) để nhận thông báo trên PWA. */
-export const VAPID_KEY = '';
+export const VAPID_KEY = 'BGhnhQBmEX6HBwkChaBmMul37xnTuwzXrOmAJa--5H-9oZZkkeH_VcaRgQchodozbC7mZMipjvnNo6DF9rngvQc';
 
 /**
  * Bật thông báo đẩy trong app Android. CHỈ bật sau khi đã có google-services.json,
